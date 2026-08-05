@@ -1,0 +1,339 @@
+{
+  "site": {
+    "title": "Night-Time",
+    "tagline": "For quiet hours \u2014 when sleep will not come.",
+    "footer": "Videos play via YouTube. Ads and recommendations are controlled by YouTube. For official ad-free playback, use YouTube Premium."
+  },
+  "favourites": [
+    {
+      "id": "mPZkdNFkNps",
+      "title": "Rain on a window",
+      "channel": "Curated",
+      "note": "Soft rain \u2014 a gentle default"
+    },
+    {
+      "id": "yIQd2Ya0Ziw",
+      "title": "Fireplace",
+      "channel": "Curated",
+      "note": "Warm cabin glow"
+    },
+    {
+      "id": "eKFTSSKCzWA",
+      "title": "Ocean waves",
+      "channel": "Curated",
+      "note": "Slow shore"
+    },
+    {
+      "id": "c9pQYOGIWM8",
+      "title": "Train cabin",
+      "channel": "Curated",
+      "note": "Night travel hum"
+    }
+  ],
+  "categories": [
+    {
+      "id": "rain",
+      "name": "Rain & storms",
+      "emoji": "\ud83c\udf27",
+      "blurb": "Soft rain, thunder at a distance.",
+      "videos": [
+        {
+          "id": "mPZkdNFkNps",
+          "title": "Rain sounds for sleep",
+          "channel": "YouTube"
+        },
+        {
+          "id": "q76bMs-NwRk",
+          "title": "Gentle night rain",
+          "channel": "YouTube"
+        },
+        {
+          "id": "zSKfyjcR4x4",
+          "title": "Soothing rain black screen",
+          "channel": "YouTube"
+        },
+        {
+          "id": "rdKNZlhHq9M",
+          "title": "Heavy rain dark screen",
+          "channel": "YouTube"
+        },
+        {
+          "id": "q6XlcY7rL0k",
+          "title": "Thunderstorm ambience",
+          "channel": "YouTube"
+        },
+        {
+          "id": "8plwv25NYRo",
+          "title": "Rain sound relaxation",
+          "channel": "YouTube"
+        }
+      ]
+    },
+    {
+      "id": "forest",
+      "name": "Forest & birds",
+      "emoji": "\ud83c\udf32",
+      "blurb": "Leaves, wind, distant birdsong.",
+      "videos": [
+        {
+          "id": "xNN7iTA57jM",
+          "title": "Forest sounds",
+          "channel": "YouTube"
+        },
+        {
+          "id": "Qm846KdZN_c",
+          "title": "Forest birdsong",
+          "channel": "YouTube"
+        },
+        {
+          "id": "4KzFe50RQkQ",
+          "title": "Wind in the trees",
+          "channel": "YouTube"
+        },
+        {
+          "id": "7WPsftkv1ZY",
+          "title": "Windy woods",
+          "channel": "YouTube"
+        },
+        {
+          "id": "RzVvThhjAKw",
+          "title": "Forest 4K nature",
+          "channel": "YouTube"
+        },
+        {
+          "id": "ipf7ifVSeDU",
+          "title": "Relaxing meadow",
+          "channel": "YouTube"
+        }
+      ]
+    },
+    {
+      "id": "ocean",
+      "name": "Ocean & wind",
+      "emoji": "\ud83c\udf0a",
+      "blurb": "Waves and open air.",
+      "videos": [
+        {
+          "id": "eKFTSSKCzWA",
+          "title": "Ocean waves",
+          "channel": "YouTube"
+        },
+        {
+          "id": "WHPEKLQID4U",
+          "title": "Beach night",
+          "channel": "YouTube"
+        },
+        {
+          "id": "vPhg6sc1Mk4",
+          "title": "Calm sea",
+          "channel": "YouTube"
+        },
+        {
+          "id": "bn9F19Hi1Lk",
+          "title": "Rolling waves deep sleep",
+          "channel": "YouTube"
+        },
+        {
+          "id": "YM9EZxBko2k",
+          "title": "Ocean waves deep sleep",
+          "channel": "YouTube"
+        },
+        {
+          "id": "P_SeZhpqbvE",
+          "title": "Waves crashing on beach",
+          "channel": "YouTube"
+        }
+      ]
+    },
+    {
+      "id": "train",
+      "name": "Train & travel",
+      "emoji": "\ud83d\ude82",
+      "blurb": "Rails, cabins, the soft clack of night trains.",
+      "videos": [
+        {
+          "id": "c9pQYOGIWM8",
+          "title": "Train ride ambience",
+          "channel": "YouTube"
+        },
+        {
+          "id": "aRwvWi1MYr0",
+          "title": "Cosy sleeper train rainy evening",
+          "channel": "YouTube"
+        },
+        {
+          "id": "-xiF9YIIUk4",
+          "title": "Train sounds and rain",
+          "channel": "YouTube"
+        },
+        {
+          "id": "GlrhYhvM490",
+          "title": "Night train rainy night",
+          "channel": "YouTube"
+        },
+        {
+          "id": "3-ahwps_Zd0",
+          "title": "Night train with station sounds",
+          "channel": "YouTube"
+        },
+        {
+          "id": "pyyJQD91qMU",
+          "title": "Luxury train ride",
+          "channel": "YouTube"
+        }
+      ]
+    },
+    {
+      "id": "fire",
+      "name": "Fireplace & cabin",
+      "emoji": "\ud83d\udd25",
+      "blurb": "Crackling wood and warm light.",
+      "videos": [
+        {
+          "id": "yIQd2Ya0Ziw",
+          "title": "Fireplace 4K",
+          "channel": "YouTube"
+        },
+        {
+          "id": "L_LUpnjgPso",
+          "title": "Cozy fire ambience",
+          "channel": "YouTube"
+        },
+        {
+          "id": "UgHKb_7884o",
+          "title": "Cabin fireplace",
+          "channel": "YouTube"
+        },
+        {
+          "id": "cdKop6aixVE",
+          "title": "Fireplace 10 hours 4K",
+          "channel": "YouTube"
+        },
+        {
+          "id": "CZUN7Cl0zvk",
+          "title": "Crackling fire with snowstorm",
+          "channel": "YouTube"
+        },
+        {
+          "id": "XwhFFXVj-LU",
+          "title": "Relaxing fire sounds",
+          "channel": "YouTube"
+        }
+      ]
+    },
+    {
+      "id": "noise",
+      "name": "Soft noise",
+      "emoji": "\ud83c\udf9a",
+      "blurb": "Brown, pink, and gentle static.",
+      "videos": [
+        {
+          "id": "dZLDYli5xTA",
+          "title": "Deep brown noise",
+          "channel": "YouTube"
+        },
+        {
+          "id": "nMfPqeZjc2c",
+          "title": "White noise black screen",
+          "channel": "YouTube"
+        },
+        {
+          "id": "9HeGgJSyVec",
+          "title": "Super deep brown noise",
+          "channel": "YouTube"
+        },
+        {
+          "id": "GrwTSN2Saak",
+          "title": "Deep layered brown noise",
+          "channel": "YouTube"
+        },
+        {
+          "id": "FcWgjCDPiP4",
+          "title": "Smoothed brown noise",
+          "channel": "YouTube"
+        },
+        {
+          "id": "RqzGzwTY-6w",
+          "title": "Soft static",
+          "channel": "YouTube"
+        }
+      ]
+    },
+    {
+      "id": "asmr",
+      "name": "Soft focus",
+      "emoji": "\ud83c\udf19",
+      "blurb": "Quiet, low-stimulus ambient \u2014 not intense triggers.",
+      "videos": [
+        {
+          "id": "jfKfPfyJRdk",
+          "title": "Lofi beats to rest to",
+          "channel": "YouTube"
+        },
+        {
+          "id": "4xDzrJKXOOY",
+          "title": "Space ambient",
+          "channel": "YouTube"
+        },
+        {
+          "id": "lFcSrYw-ARY",
+          "title": "Soft piano night",
+          "channel": "YouTube"
+        },
+        {
+          "id": "DWcJFNfaw9c",
+          "title": "Quiet room tones",
+          "channel": "YouTube"
+        },
+        {
+          "id": "BTYAsjAVa3I",
+          "title": "Late night study lofi",
+          "channel": "YouTube"
+        },
+        {
+          "id": "5qap5aO4i9A",
+          "title": "Chill study beats",
+          "channel": "YouTube"
+        }
+      ]
+    },
+    {
+      "id": "scenic",
+      "name": "Slow scenic",
+      "emoji": "\ud83d\udee4",
+      "blurb": "Long views. Nothing to solve.",
+      "videos": [
+        {
+          "id": "BHACKCNDMW8",
+          "title": "Earth scenery calm",
+          "channel": "YouTube"
+        },
+        {
+          "id": "1ZYbU82GVz4",
+          "title": "Flying relaxation",
+          "channel": "YouTube"
+        },
+        {
+          "id": "eKFTSSKCzWA",
+          "title": "Coastal slow",
+          "channel": "YouTube"
+        },
+        {
+          "id": "c9pQYOGIWM8",
+          "title": "Rails and landscape",
+          "channel": "YouTube"
+        },
+        {
+          "id": "yIQd2Ya0Ziw",
+          "title": "Cabin night",
+          "channel": "YouTube"
+        },
+        {
+          "id": "4xDzrJKXOOY",
+          "title": "Space drift",
+          "channel": "YouTube"
+        }
+      ]
+    }
+  ]
+}

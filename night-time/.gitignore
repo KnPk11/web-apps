@@ -1,0 +1,6 @@
+# Local environment files & logs
+.env
+*.log
+*.tmp
+node_modules/
+.DS_Store

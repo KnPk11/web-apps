@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="Night-Time — a quiet portal of rain, trains, firelight and soft sound for hours when sleep will not come." />
+  <meta name="theme-color" content="#0c0b0a" />
+  <title>Night-Time</title>
+  <link rel="stylesheet" href="assets/style.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🌙%3C/text%3E%3C/svg%3E" />
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="brand">
+      <span class="moon" aria-hidden="true">☾</span>
+      <div>
+        <h1>Night-Time</h1>
+        <p class="tagline" id="tagline">For quiet hours</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button type="button" id="btn-lowblue" class="chip" aria-pressed="false" title="Warmer, lower blue light">Warm</button>
+      <button type="button" id="btn-surprise" class="chip primary">Surprise me</button>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" aria-label="Favourites">
+      <div class="section-head">
+        <h2>Favourites</h2>
+        <p>Pinned soft starts — edit anytime in <code>data/curated.json</code>.</p>
+      </div>
+      <div id="favourites" class="card-row"></div>
+    </section>
+
+    <section aria-label="Categories">
+      <div class="section-head">
+        <h2>Browse</h2>
+        <p>Pick a mood. Tap a card when you are ready.</p>
+      </div>
+      <div id="categories" class="cat-grid"></div>
+    </section>
+
+    <section id="library" class="library hidden" aria-live="polite">
+      <div class="section-head row">
+        <button type="button" id="btn-back" class="chip">← Back</button>
+        <div>
+          <h2 id="lib-title">Category</h2>
+          <p id="lib-blurb"></p>
+        </div>
+      </div>
+      <div id="video-grid" class="video-grid"></div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="timer" aria-label="Sleep timer">
+      <span class="timer-label">Sleep timer</span>
+      <div class="timer-btns">
+        <button type="button" data-min="15" class="chip">15m</button>
+        <button type="button" data-min="30" class="chip">30m</button>
+        <button type="button" data-min="45" class="chip">45m</button>
+        <button type="button" data-min="60" class="chip">60m</button>
+        <button type="button" id="btn-timer-cancel" class="chip ghost hidden">Cancel</button>
+      </div>
+      <p id="timer-status" class="timer-status" hidden></p>
+    </div>
+    <p id="footer-note" class="fine"></p>
+  </footer>
+
+  <!-- Player modal -->
+  <div id="player-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="player-title">
+    <div class="overlay-panel">
+      <div class="overlay-bar">
+        <h3 id="player-title">Playing</h3>
+        <button type="button" id="btn-close" class="chip" aria-label="Close player">Close</button>
+      </div>
+      <div class="player-frame" id="player-frame">
+        <!-- iframe injected on open -->
+      </div>
+      <p class="fine center">Opens via YouTube embed · sound starts when you press play</p>
+    </div>
+  </div>
+
+  <div id="rest-overlay" class="rest hidden" role="alertdialog" aria-labelledby="rest-title">
+    <div>
+      <p id="rest-title">Time to rest</p>
+      <p>The timer ended. The room can stay dark now.</p>
+      <button type="button" id="btn-rest-dismiss" class="chip primary">I’m still here</button>
+    </div>
+  </div>
+
+  <script src="assets/app.js" type="module"></script>
+</body>
+</html>
