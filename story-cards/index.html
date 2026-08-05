@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noarchive, noimageindex">
+    <title>StoryCards - The Unhinged Feed</title>
+    <style>
+        :root {
+            --bg: #020617;
+            --card-bg: #1e293b;
+            --accent: #22d3ee; /* Bright Cyan */
+            --roast-bg: #064e3b; /* Deep Emerald Green */
+            --text: #f8fafc;
+            --text-dim: #94a3b8;
+            --toxic: #f97316; /* Vibrant Orange */
+            --pending: #fbbf24; /* Amber/Yellow */
+            --mod-accent: #4ade80; /* Bright Green accent */
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .header {
+            text-align: center;
+            padding: 10px 0;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .user-badge {
+            background: rgba(34, 211, 238, 0.1);
+            border: 1px solid var(--accent);
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.75em;
+            color: var(--accent);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .user-badge:hover {
+            background: var(--accent);
+            color: #0f172a;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 2em;
+            background: linear-gradient(to right, var(--accent), var(--mod-accent), var(--toxic));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .submit-section {
+            background: rgba(30, 41, 59, 0.5);
+            backdrop-filter: blur(10px);
+            padding: 15px;
+            border-radius: 16px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            flex-shrink: 0;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+
+        .submit-grid {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 0;
+            align-items: flex-end;
+        }
+
+        .submit-section textarea {
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            background: #0f172a;
+            color: white;
+            box-sizing: border-box;
+            font-size: 0.95em;
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        .submit-section button {
+            background: var(--accent);
+            color: #0f172a;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.2s, background 0.2s;
+            flex-shrink: 0;
+            height: 40px;
+        }
+
+        .feed-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding-right: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+            padding-bottom: 40px;
+        }
+
+        .feed-container::-webkit-scrollbar { width: 8px; }
+        .feed-container::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+
+        .story-card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 24px;
+            border: 1px solid rgba(255,255,255,0.05);
+            position: relative;
+            animation: fadeIn 0.4s ease-out;
+            transition: all 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .story-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+        }
+
+        .nickname { color: var(--accent); font-weight: 700; }
+        .timestamp { color: var(--text-dim); font-size: 0.8em; }
+
+        .story-body-container {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .story-body {
+            font-size: 0.85em; /* Match mod review font size */
+            font-style: italic; /* Match mod review style */
+            line-height: 1.6;
+            color: #e2e8f0;
+            transition: all 0.3s ease;
+            display: block;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .story-body.collapsed {
+            display: -webkit-box;
+            -webkit-line-clamp: 6; 
+            -webkit-box-orient: vertical;
+            max-height: 150px;
+            overflow: hidden;
+            mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+            -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+            white-space: pre-wrap;
+        }
+
+        .show-more-link {
+            color: var(--accent);
+            cursor: pointer;
+            font-size: 0.85em;
+            font-weight: bold;
+            display: block;
+            margin-top: -10px;
+            margin-bottom: 15px;
+            text-decoration: underline;
+            text-transform: lowercase;
+        }
+
+        *::-webkit-scrollbar { width: 6px; }
+
+        *::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 10px; }
+        *::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+        .badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.7em;
+            text-transform: uppercase;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+        .badge-pending { background: var(--pending); color: #000; }
+        .badge-deleted { background: var(--toxic); color: #000; }
+
+        /* Simplified Anti-screenshot blur */
+        .is-pending {
+            position: relative;
+            cursor: pointer;
+        }
+
+        .is-pending .story-body, 
+        .is-pending .comment-text {
+            filter: blur(12px);
+            opacity: 0.3;
+            transition: filter 0.2s ease, opacity 0.2s ease;
+            user-select: none;
+            pointer-events: none;
+        }
+
+        .is-pending:hover .story-body,
+        .is-pending:hover .comment-text,
+        .is-pending.revealed .story-body,
+        .is-pending.revealed .comment-text {
+            filter: blur(0);
+            opacity: 1;
+            user-select: auto;
+            pointer-events: auto;
+        }
+
+        .pending-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.85);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.75em;
+            color: var(--pending);
+            border: 1px solid var(--pending);
+            z-index: 10;
+            pointer-events: none;
+            white-space: nowrap;
+            font-weight: bold;
+        }
+
+        .is-pending:hover .pending-overlay,
+        .is-pending.revealed .pending-overlay {
+            display: none;
+        }
+
+        .content-deleted {
+            color: var(--toxic);
+            font-style: italic;
+            font-weight: bold;
+            background: rgba(249, 115, 22, 0.1);
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px dashed var(--toxic);
+        }
+
+        .rehabilitate-btn {
+            background: var(--toxic);
+            color: #000;
+            border: none;
+            padding: 5px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8em;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        .roast-bubble {
+            background: linear-gradient(135deg, #064e3b 0%, #022c22 100%);
+            padding: 20px;
+            border-radius: 16px;
+            border-left: 4px solid var(--mod-accent);
+            margin-bottom: 20px;
+            position: relative;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .roast-label {
+            position: absolute;
+            top: -10px;
+            left: 20px;
+            background: var(--mod-accent);
+            color: #064e3b;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.7em;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .roast-text { font-style: italic; color: #d1fae5; }
+
+        .comments-section { border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; }
+        .comment-list { list-style: none; padding: 0; margin: 0 0 15px 0; max-height: 200px; overflow-y: auto; }
+        .comment-item {
+            font-size: 0.9em;
+            margin-bottom: 8px;
+            padding: 10px 12px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .comment-ai-reply {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            font-size: 0.85em;
+            color: var(--mod-accent);
+            font-style: italic;
+        }
+
+        .mod-tag { background: var(--mod-accent); color: #064e3b; padding: 1px 6px; border-radius: 4px; font-size: 0.7em; font-weight: 900; margin-right: 5px; text-transform: uppercase; }
+        .comment-user { color: var(--accent); font-weight: 600; margin-right: 8px; }
+        .comment-box { display: flex; gap: 10px; }
+        .comment-box input { flex-grow: 1; background: #0f172a; border: 1px solid #334155; color: white; padding: 8px 12px; border-radius: 8px; font-size: 0.9em; }
+        .comment-box button { background: rgba(34, 211, 238, 0.2); color: var(--accent); border: 1px solid var(--accent); padding: 5px 15px; border-radius: 8px; cursor: pointer; font-size: 0.8em; }
+
+        .extras-drawer {
+            display: none;
+            width: 100%;
+            flex-shrink: 0;
+        }
+
+        .extras-drawer.open {
+            display: block;
+        }
+
+        .toggle-extras-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-dim);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            cursor: pointer;
+            margin-bottom: 10px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .toggle-extras-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .podcast-section {
+            background: linear-gradient(to right, #1e293b, #0f172a);
+            border-radius: 16px;
+            padding: 15px 20px;
+            margin-bottom: 15px;
+            border: 1px solid var(--mod-accent);
+            display: none; 
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            width: 100%;
+            box-sizing: border-box;
+            flex-shrink: 0;
+        }
+
+        .podcast-info { flex-grow: 1; min-width: 0; }
+        .podcast-title { font-weight: bold; color: var(--mod-accent); font-size: 0.9em; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        audio {
+            height: 40px;
+            width: 100%;
+            filter: invert(100%) hue-rotate(180deg) brightness(1.5);
+            display: block;
+        }
+        .export-link {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 0.8em;
+            padding-bottom: 20px;
+        }
+        .export-link a { color: var(--text-dim); text-decoration: none; border: 1px solid #334155; padding: 4px 10px; border-radius: 20px; }
+        .export-link a:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* Mobile adjustments */
+        @media (max-width: 600px) {
+            .app-container { padding: 10px; }
+            .header h1 { font-size: 1.5em; }
+            .story-card { padding: 16px; }
+            .submit-grid { flex-direction: column; align-items: stretch; }
+            .submit-section button { width: 100%; }
+            #podcast-player { 
+                position: static; 
+                margin-bottom: 20px;
+            }
+        }
+
+        #podcast-player { 
+            display: none; 
+            position: relative;
+            margin-bottom: 25px;
+        }
+</style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="header">
+            <h1>StoryCards</h1>
+            <p style="color: var(--text-dim)">Latest stories and moderator roasts</p>
+        </div>
+
+        <div style="display: flex; justify-content: center;">
+            <button class="toggle-extras-btn" id="extras-btn" style="display: none;" onclick="toggleExtras()">
+                <span>🌟</span> Community Extras <span id="extras-chevron">▼</span>
+            </button>
+        </div>
+
+        <div class="extras-drawer" id="extras-drawer">
+            <div class="podcast-section" id="podcast-player">
+                <div style="font-size: 1.5em;">📻</div>
+                <div class="podcast-info">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <div class="podcast-title">Latest Community Podcast</div>
+                        <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                            <a href="/api/export-script" target="_blank" style="font-size: 0.7em; color: var(--text-dim); text-decoration: none; border: 1px solid #334155; padding: 2px 8px; border-radius: 12px;">📄 Generate NotebookLM Script</a>
+                            <a id="pod-download" href="#" style="font-size: 0.7em; color: var(--accent); text-decoration: none;" download>Download Audio</a>
+                        </div>
+                    </div>
+                    <audio id="audio-ctrl" controls></audio>
+                </div>
+            </div>
+        </div>
+
+        <div class="submit-section">
+            <div class="submit-grid">
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+                    <div id="nick-display" class="user-badge" style="display: none; align-self: flex-start; width: fit-content; margin-bottom: 0;" onclick="changeNickname()"></div>
+                    <textarea id="content" rows="2" placeholder="What happened today?" maxlength="10000"></textarea>
+                </div>
+                <button onclick="submitStory()">Post Story</button>
+            </div>
+        </div>
+        <div class="feed-container" id="feed"></div>
+    </div>
+
+    <script>
+        let lastStoryId = 0;
+        let lastCommentCount = 0;
+        let lastReviewHash = "";
+        let currentPodcastFile = "";
+        let allStoriesCache = [];
+
+        function toggleExtras() {
+            const drawer = document.getElementById('extras-drawer');
+            const btn = document.getElementById('extras-btn');
+            const chevron = document.getElementById('extras-chevron');
+            drawer.classList.toggle('open');
+            if (drawer.classList.contains('open')) {
+                chevron.innerText = '▲';
+            } else {
+                chevron.innerText = '▼';
+            }
+        }
+
+        async function fetchLatestPodcast() {
+            try {
+                const res = await fetch('/api/latest-podcast');
+                const btn = document.getElementById('extras-btn');
+                if (!res.ok) {
+                    btn.style.display = 'none';
+                    return;
+                }
+                const data = await res.json();
+                btn.style.display = 'flex'; // Show the toggle button if podcast exists
+                
+                if (data.filename !== currentPodcastFile) {
+                    currentPodcastFile = data.filename;
+                    const player = document.getElementById('podcast-player');
+                    const audio = document.getElementById('audio-ctrl');
+                    const downloadLink = document.getElementById('pod-download');
+                    audio.src = data.url;
+                    if (downloadLink) downloadLink.href = data.url;
+                    player.style.display = 'flex';
+                }
+            } catch (e) {}
+        }
+
+        function getStoredNick() { return localStorage.getItem('storycards_nick'); }
+
+        function ensureNickname() {
+            let nick = getStoredNick();
+            if (!nick || nick.trim() === "") {
+                nick = prompt("Enter your alias (Max 25 chars):");
+                if (!nick || nick.trim() === "") return null;
+                nick = nick.trim().substring(0, 25);
+                localStorage.setItem('storycards_nick', nick);
+            }
+            updateUserBadge(nick);
+            return nick;
+        }
+
+        function changeNickname() {
+            const current = getStoredNick();
+            if (current && current.trim() !== "") {
+                alert("Nickname cannot be changed once set.");
+                return;
+            }
+            let nick = prompt("Enter your alias (Max 25 chars):");
+            if (nick && nick.trim() !== "") {
+                nick = nick.trim().substring(0, 25);
+                localStorage.setItem('storycards_nick', nick);
+                updateUserBadge(nick);
+            }
+        }
+
+        function updateUserBadge(nick) {
+            const el = document.getElementById('nick-display');
+            if (nick && nick.trim() !== "") {
+                el.innerText = `Posting as @${nick}`;
+                el.style.display = 'block';
+                el.style.cursor = 'default';
+                el.onclick = null;
+            } else {
+                el.style.display = 'none';
+            }
+        }
+
+        async function fetchStories() {
+            try {
+                const res = await fetch('/api/stories');
+                const stories = await res.json();
+                allStoriesCache = stories;
+                const feed = document.getElementById('feed');
+                const myNick = getStoredNick();
+                
+                const currentCommentCount = stories.reduce((acc, s) => acc + s.comments.length, 0);
+                const currentReviewHash = stories.map(s => `${s.id}:${s.moderated}:${s.review || ''}`).join('|');
+
+                if (stories.length > 0 && (stories[0].id !== lastStoryId || currentCommentCount !== lastCommentCount || currentReviewHash !== lastReviewHash)) {
+                    // Save input values
+                    const savedInputs = {};
+                    document.querySelectorAll('[id^="comment-input-"]').forEach(input => {
+                        if (input.value) savedInputs[input.id] = input.value;
+                    });
+
+                    lastStoryId = stories[0].id;
+                    lastCommentCount = currentCommentCount;
+                    lastReviewHash = currentReviewHash;
+                    feed.innerHTML = '';
+                    stories.forEach(s => renderStory(s, myNick));
+
+                    // Restore input values
+                    Object.keys(savedInputs).forEach(id => {
+                        const input = document.getElementById(id);
+                        if (input) input.value = savedInputs[id];
+                    });
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        function renderStory(story, myNick) {
+            const feed = document.getElementById('feed');
+            const card = document.createElement('div');
+            const isToxic = story.moderated === -1;
+            const isPending = story.moderated === 0;
+            const isMine = story.nickname === myNick;
+            card.className = `story-card`;
+            
+            const d = new Date(story.created_at);
+            const dateStr = d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+            const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const timestamp = `${dateStr}, ${timeStr}`;
+
+            const needsTruncation = story.content.length > 300;
+            let contentHtml = `
+                <div class="story-body-container ${isPending && !isMine ? 'is-pending' : ''}" 
+                     ${isPending && !isMine ? `onclick="this.classList.toggle('revealed')"` : ''}>
+                    ${isPending && !isMine ? '<div class="pending-overlay">Click to Reveal (Pending Mod)</div>' : ''}
+                    <div class="story-body ${needsTruncation ? 'collapsed' : ''}" id="story-text-${story.id}">${story.content}</div>
+                </div>`;
+            
+            if (needsTruncation) {
+                contentHtml += `<a class="show-more-link" id="expand-btn-${story.id}" onclick="toggleExpand(${story.id})">show all</a>`;
+            }
+
+            if (isToxic) {
+                if (isMine) {
+                    contentHtml = `
+                        <div class="content-deleted">🚨 Content flagged as TOXIC by moderator. Only you can see this.</div>
+                        <div class="story-body" style="opacity: 0.5">${story.content}</div>
+                        <button class="rehabilitate-btn" onclick="rehabilitate(${story.id}, 'story')">Edit & Resubmit</button>
+                    `;
+                } else {
+                    contentHtml = `<div class="content-deleted">[DELETED BY MODERATOR FOR RULES VIOLATION]</div>`;
+                }
+            }
+
+            card.innerHTML = `
+                <div class="story-meta">
+                    <span class="nickname">@${story.nickname} 
+                        ${story.moderated === 0 ? '<span class="badge badge-pending">Pending Moderation</span>' : ''}
+                        ${isToxic ? '<span class="badge badge-deleted">Deleted</span>' : ''}
+                    </span>
+                    <span class="timestamp">${timestamp}</span>
+                </div>
+                ${contentHtml}
+                ${story.moderated === 1 && story.review && story.review !== 'SKIPPED' ? `
+                    <div class="roast-bubble">
+                        <div class="roast-label">Moderator Review</div>
+                        <div class="roast-text">"${story.review}"</div>
+                    </div>
+                ` : ''}
+                <div class="comments-section">
+                    <div class="comment-list" id="comments-${story.id}">
+                        ${story.comments.map(c => {
+                            const cPending = c.moderated === 0;
+                            const cMine = c.nickname === myNick;
+                            const shouldBlur = cPending && !cMine;
+                            return `
+                                <li class="comment-item ${shouldBlur ? 'is-pending' : ''}" 
+                                    ${shouldBlur ? `onclick="this.classList.toggle('revealed')"` : ''}>
+                                    <div class="comment-user-row">
+                                        <span class="comment-user">${c.nickname}${c.moderated === 0 ? ' (pending)' : ''}:</span>
+                                        ${shouldBlur ? '<span class="pending-overlay" style="position:static; transform:none; display:inline-block; padding:2px 6px; font-size:0.6em; margin-bottom:4px; cursor:pointer">Tap to reveal</span>' : ''}
+                                        <span class="comment-text">${c.comment}</span>
+                                    </div>
+                                    ${c.review && c.review !== 'SKIPPED' ? `<div class="comment-ai-reply"><span class="mod-tag">MOD</span> ${c.review}</div>` : ''}
+                                </li>
+                            `;
+                        }).join('')}
+                    </div>
+                    <div class="comment-box">
+                        <input type="text" placeholder="Add a comment... (Max 200 chars)" maxlength="200" id="comment-input-${story.id}" onkeypress="if(event.key === 'Enter') postComment(${story.id})">
+                        <button onclick="postComment(${story.id})">Reply</button>
+                    </div>
+                </div>
+            `;
+            feed.appendChild(card);
+        }
+
+        function toggleExpand(id) {
+            const text = document.getElementById(`story-text-${id}`);
+            const btn = document.getElementById(`expand-btn-${id}`);
+            if (text.classList.contains('collapsed')) {
+                text.classList.remove('collapsed');
+                btn.innerText = "show less";
+            } else {
+                text.classList.add('collapsed');
+                btn.innerText = "show all";
+            }
+        }
+
+        async function rehabilitate(id, type) {
+            const nick = ensureNickname(); if (!nick) return;
+
+            // Find current content from cache
+            let currentContent = "";
+            if (type === 'story') {
+                const story = allStoriesCache.find(s => s.id === id);
+                if (story) currentContent = story.content;
+            } else {
+                for (const s of allStoriesCache) {
+                    const comment = s.comments.find(c => c.id === id);
+                    if (comment) { currentContent = comment.comment; break; }
+                }
+            }
+
+            const newContent = prompt(`Rehabilitate your ${type}:`, currentContent);
+            if (!newContent || newContent.trim() === "" || newContent === currentContent) return;
+            if (type === 'story' && newContent.length > 5000) {
+                alert(`Story is too long (${newContent.length} chars). Please reduce it to under 5000 chars.`);
+                return;
+            }
+            const res = await fetch('/api/rehabilitate', {
+                method: 'POST',
+                body: JSON.stringify({ id, type, content: newContent, nickname: nick })
+            });
+            if (res.ok) { lastStoryId = -1; fetchStories(); }
+        }
+
+        async function submitStory() {
+            const nick = ensureNickname(); if (!nick) return;
+            const content = document.getElementById('content').value; if (!content) return;
+            if (content.length > 5000) {
+                alert(`Story is too long (${content.length} chars). Please reduce it to under 5000 chars.`);
+                return;
+            }
+            const res = await fetch('/api/submit', { method: 'POST', body: JSON.stringify({ nickname: nick, content }) });
+            if (res.ok) { document.getElementById('content').value = ''; lastStoryId = -1; fetchStories(); }
+        }
+
+        async function postComment(sid) {
+            const nick = ensureNickname(); if (!nick) return;
+            const input = document.getElementById(`comment-input-${sid}`);
+            const comment = input.value; if (!comment) return;
+            const res = await fetch('/api/comment', { method: 'POST', body: JSON.stringify({ story_id: sid, nickname: nick, comment }) });
+            if (res.ok) { 
+                input.value = ''; 
+                lastStoryId = -1;
+                setTimeout(fetchStories, 100); 
+            }
+        }
+
+        updateUserBadge(getStoredNick());
+        fetchStories();
+        fetchLatestPodcast();
+        setInterval(fetchStories, 2000);
+        setInterval(fetchLatestPodcast, 10000);
+    </script>
+</body>
+</html>
