@@ -1,11 +1,94 @@
 import sqlite3
-import subprocess
 import json
 import time
+import urllib.request
+import urllib.error
 
 import os
 import re
 from database import get_db
+
+# ── Environment Auto-loader (.env) ─────────────────────────────
+env_path = os.path.join(os.path.dirname(__file__), '.env')
+if os.path.exists(env_path):
+    with open(env_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                k, v = line.split('=', 1)
+                os.environ.setdefault(k.strip(), v.strip().strip("'\""))
+
+# ── Hermes / NVIDIA LLM backend ─────────────────────────────────
+# Uses the same NVIDIA Build endpoint and API key that Hermes is
+# configured with, but calls it directly via OpenAI-compatible API.
+NVIDIA_BASE_URL = os.environ.get('NVIDIA_BASE_URL', 'https://integrate.api.nvidia.com/v1')
+NVIDIA_API_KEY  = os.environ.get('NVIDIA_API_KEY', '')
+NVIDIA_MODEL    = os.environ.get('NVIDIA_MODEL',    'minimaxai/minimax-m3')
+
+import random
+
+def _llm_chat(prompt, system=None, max_tokens=256, temperature=0.7, max_retries=5, pacing_delay=3.0):
+    """Call the NVIDIA endpoint with request pacing, 45s socket timeout, and rate-limit backoff."""
+    messages = []
+    if system:
+        messages.append({'role': 'system', 'content': system})
+    messages.append({'role': 'user', 'content': prompt})
+
+    payload = json.dumps({
+        'model': NVIDIA_MODEL,
+        'messages': messages,
+        'max_tokens': max_tokens,
+        'temperature': temperature,
+    }).encode('utf-8')
+
+    req = urllib.request.Request(
+        f'{NVIDIA_BASE_URL}/chat/completions',
+        data=payload,
+        headers={
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {NVIDIA_API_KEY}',
+            'User-Agent': 'StoryCardsWorker/1.0',
+        },
+        method='POST',
+    )
+
+    for attempt in range(max_retries):
+        try:
+            # Enforce pacing between calls
+            time.sleep(pacing_delay)
+
+            with urllib.request.urlopen(req, timeout=45) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+                return data['choices'][0]['message']['content'].strip()
+
+        except urllib.error.HTTPError as e:
+            if e.code in (429, 500, 502, 503, 504) and attempt + 1 < max_retries:
+                retry_after_hdr = e.headers.get('Retry-After', '') if e.headers else ''
+                retry_after = float(retry_after_hdr) if retry_after_hdr.isdigit() else None
+
+                if retry_after is not None:
+                    wait_time = retry_after
+                else:
+                    backoff = min(pacing_delay * (2 ** attempt), 60.0)
+                    wait_time = backoff + random.uniform(0, backoff * 0.2)
+
+                print(f'[LLM] Rate limited (HTTP {e.code}). Retrying in {wait_time:.1f}s (Attempt {attempt+1}/{max_retries})...')
+                time.sleep(wait_time)
+                continue
+            else:
+                print(f'[LLM] HTTP error {e.code}: {e.reason}')
+                return None
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError) as e:
+            if attempt + 1 < max_retries:
+                wait_time = pacing_delay * (2 ** attempt)
+                print(f'[LLM] Network/Parse error ({e}). Retrying in {wait_time:.1f}s...')
+                time.sleep(wait_time)
+                continue
+            else:
+                print(f'[LLM] API error after {max_retries} retries: {e}')
+                return None
+
+    return None
 
 
 
@@ -36,13 +119,9 @@ def moderate_content(content, is_comment=False):
         f"Do NOT reject them. Treat them as a joke. Reply with ONLY 'APPROVED' or 'REJECTED'.\n\n{type_label.capitalize()}: {content}"
     )
     try:
-        result = subprocess.run(
-            ['/home/k/.npm-global/bin/openclaw', 'infer', 'model', 'run', '--local', '--prompt', prompt, '--json'],
-            capture_output=True, text=True
-        )
-        data = json.loads(result.stdout)
-        if data.get('ok') and data.get('outputs'):
-            output = data['outputs'][0]['text'].strip().upper()
+        output = _llm_chat(prompt, max_tokens=16, temperature=0.0)
+        if output:
+            output = output.upper()
             if 'APPROVED' in output:
                 return 1
             elif 'REJECTED' in output:
@@ -112,13 +191,11 @@ def get_unhinged_review(content, is_comment=False, context=""):
 
     print(f"Moderator Mood: {selected_mood['name']}")
 
-    # Use openclaw infer directly (no LM Studio)
+    # Call NVIDIA endpoint via Hermes-configured provider
     try:
-        prompt = f"{system_prompt}\n\nInput: {full_content}"
-        result = subprocess.run(['/home/k/.npm-global/bin/openclaw', 'infer', 'model', 'run', '--local', '--prompt', prompt, '--json'], capture_output=True, text=True)
-        data = json.loads(result.stdout)
-        if data.get('ok') and data.get('outputs'):
-            return data['outputs'][0]['text'].strip()
+        result = _llm_chat(full_content, system=system_prompt, max_tokens=256, temperature=0.9)
+        if result:
+            return result
     except Exception as e:
         print(f"Unhinged review error: {e}")
     return None
