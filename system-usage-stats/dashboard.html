@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Dashboard</title>
+  <style>
+.core-fill.green { background: #22c55e; }
+.core-fill.yellow { background: #eab308; }
+.core-fill.red { background: #ef4444; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f0f0f;
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    .header h1 {
+      font-size: 24px;
+      font-weight: 600;
+      color: #fff;
+    }
+    .header .hostname {
+      color: #666;
+      font-size: 14px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .card {
+      background: #1a1a1a;
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid #2a2a2a;
+    }
+    .card-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #666;
+      margin-bottom: 12px;
+    }
+    .stat-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .stat-label {
+      font-size: 13px;
+      color: #888;
+      margin-top: 4px;
+    }
+    .progress-bar {
+      height: 8px;
+      background: #333;
+      border-radius: 4px;
+      margin-top: 12px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.5s ease;
+    }
+    .progress-fill.green { background: #22c55e; }
+    .progress-fill.yellow { background: #eab308; }
+    .progress-fill.red { background: #ef4444; }
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+    .info-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #2a2a2a;
+      font-size: 13px;
+    }
+    .info-item .label { color: #666; }
+    .info-item .value { color: #fff; font-weight: 500; }
+    .disk-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .disk-item {
+      background: #222;
+      padding: 12px;
+      border-radius: 8px;
+    }
+    .disk-name { font-size: 13px; color: #888; margin-bottom: 8px; }
+    .disk-usage { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+    .cpu-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #2a2a2a;
+    }
+    .core-item {
+      display: flex;
+      flex-direction: column;
+    }
+    .core-info {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: #666;
+      margin-bottom: 4px;
+    }
+    .core-bar {
+      height: 4px;
+      background: #333;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .core-fill {
+      height: 100%;
+      transition: width 0.5s ease;
+    }
+    .last-updated {
+      text-align: center;
+      color: #444;
+      font-size: 12px;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🖥️ System Dashboard</h1>
+    <span class="hostname" id="hostname">Loading...</span>
+  </div>
+  
+  <div class="grid">
+    <div class="card">
+      <div class="card-title">CPU Usage</div>
+      <div class="stat-value" id="cpu">--%</div>
+      <div class="stat-label" id="cpuModel">--</div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="cpuBar" style="width: 0%"></div>
+      </div>
+      <div id="cpuGrid" class="cpu-grid"></div>
+    </div>
+    
+    <div class="card">
+      <div class="card-title">Memory</div>
+      <div class="stat-value" id="mem">--%</div>
+      <div class="stat-label" id="memDetail">-- / -- GB</div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="memBar" style="width: 0%"></div>
+      </div>
+    </div>
+    
+    <div class="card">
+      <div class="card-title">Uptime</div>
+      <div class="stat-value" id="uptime">--</div>
+      <div class="stat-label">since last boot</div>
+    </div>
+    
+    <div class="card">
+      <div class="card-title">Load Average</div>
+      <div class="stat-value" id="load">--</div>
+      <div class="stat-label">1 / 5 / 15 min</div>
+    </div>
+  </div>
+  
+  <div class="grid">
+    <div class="card">
+      <div class="card-title">System Info</div>
+      <div class="info-grid">
+        <div class="info-item"><span class="label">Kernel</span><span class="value" id="kernel">--</span></div>
+        <div class="info-item"><span class="label">OS</span><span class="value" id="os">--</span></div>
+        <div class="info-item"><span class="label">Architecture</span><span class="value" id="arch">--</span></div>
+        <div class="info-item"><span class="label">Processes</span><span class="value" id="procs">--</span></div>
+      </div>
+    </div>
+    
+    <div class="card">
+      <div class="card-title">Storage</div>
+      <div class="disk-grid" id="disks"></div>
+    </div>
+  </div>
+  
+  <div class="last-updated" id="updated">Last updated: --</div>
+
+  <script>
+    async function fetchStats() {
+      try {
+        const response = await fetch('/api/stats');
+        const data = await response.json();
+        updateDashboard(data);
+      } catch (e) {
+        document.getElementById('cpu').textContent = 'Error';
+        console.error(e);
+      }
+    }
+    
+    function updateDashboard(data) {
+      // CPU
+      document.getElementById('cpu').textContent = data.cpu + '%';
+      document.getElementById('cpuModel').textContent = data.cpuModel;
+      const cpuBar = document.getElementById('cpuBar');
+      cpuBar.style.width = data.cpu + '%';
+      cpuBar.className = 'progress-fill ' + (data.cpu > 80 ? 'red' : data.cpu > 50 ? 'yellow' : 'green');
+      
+      // Per-core CPU
+      const cpuGrid = document.getElementById('cpuGrid');
+      if (data.perCpu) {
+        cpuGrid.innerHTML = data.perCpu.map((usage, i) => `
+          <div class="core-item">
+            <div class="core-info">
+              <span>Core ${i}</span>
+              <span>${Math.round(usage)}%</span>
+            </div>
+            <div class="core-bar">
+              <div class="core-fill ${usage > 80 ? 'red' : usage > 50 ? 'yellow' : 'green'}" style="width: ${usage}%"></div>
+            </div>
+          </div>
+        `).join('');
+      }
+      
+      // Memory
+      const memPct = data.memPercent;
+      document.getElementById('mem').textContent = memPct + '%';
+      document.getElementById('memDetail').textContent = data.memUsed + ' / ' + data.memTotal + ' GB';
+      const memBar = document.getElementById('memBar');
+      memBar.style.width = memPct + '%';
+      memBar.className = 'progress-fill ' + (memPct > 80 ? 'red' : memPct > 50 ? 'yellow' : 'green');
+      
+      // Uptime
+      document.getElementById('uptime').textContent = data.uptime;
+      
+      // Load
+      document.getElementById('load').textContent = data.load;
+      
+      // System info
+      document.getElementById('hostname').textContent = data.hostname;
+      document.getElementById('kernel').textContent = data.kernel;
+      document.getElementById('os').textContent = data.os;
+      document.getElementById('arch').textContent = data.arch;
+      document.getElementById('procs').textContent = data.procs;
+      
+      // Disks
+      const diskContainer = document.getElementById('disks');
+      diskContainer.innerHTML = data.disks.map(d => `
+        <div class="disk-item">
+          <div class="disk-name">${d.mount}</div>
+          <div class="disk-usage">${d.used} / ${d.total} (${d.pct}%)</div>
+          <div class="progress-bar">
+            <div class="progress-fill ${d.pct > 80 ? 'red' : d.pct > 50 ? 'yellow' : 'green'}" style="width: ${d.pct}%"></div>
+          </div>
+        </div>
+      `).join('');
+      
+      // Updated
+      document.getElementById('updated').textContent = 'Last updated: ' + new Date().toLocaleTimeString();
+    }
+    
+    // Fetch immediately then every 3 seconds
+    fetchStats();
+    setInterval(fetchStats, 3000);
+  </script>
+</body>
+</html>
