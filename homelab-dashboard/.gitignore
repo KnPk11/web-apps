@@ -1,0 +1,17 @@
+# Local environment files (contains real secrets)
+.env
+*.secret
+
+# Templates & SOPS encrypted secrets (SAFE to commit)
+!env.example
+!*.sops.env
+
+# Dependencies & Build artifacts
+node_modules/
+venv/
+.venv/
+__pycache__/
+*.log
+*.pid
+*.tmp
+dist/
