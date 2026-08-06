@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NVIDIA Build API - Model Responsiveness Benchmark & OpenCode Configurator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="navbar">
+      <div class="brand">
+        <div class="logo-icon">⚡</div>
+        <div class="brand-text">
+          <h1>NVIDIA NIM Model Benchmark</h1>
+          <span class="subtitle">Real-Time Responsiveness & Latency Probe for OpenCode Integration</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="btnFetchModels" class="btn btn-secondary">
+          <span class="icon">🔄</span> Fetch Live Models
+        </button>
+        <button id="btnOpenCodeConfig" class="btn btn-accent">
+          <span class="icon">⚙️</span> Generate OpenCode Config
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="content-grid">
+      <!-- Controls & Settings Panel -->
+      <section class="card settings-card">
+        <div class="card-header">
+          <h2><span class="icon">🔑</span> API Configuration</h2>
+          <span class="badge badge-info" id="modelCountBadge">102 Models Detected</span>
+        </div>
+        
+        <div class="form-group">
+          <label for="apiKeyInput">NVIDIA API Key (Build / NIM):</label>
+          <div class="input-wrapper">
+            <input type="password" id="apiKeyInput" placeholder="nvapi-xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+            <button id="toggleApiKey" class="btn-icon" title="Toggle Visibility">👁️</button>
+          </div>
+          <p class="help-text">Obtained free at <a href="https://build.nvidia.com" target="_blank" rel="noopener">build.nvidia.com</a>. Saved securely in your browser's local storage.</p>
+        </div>
+
+        <div class="form-group">
+          <label for="promptInput">Test Benchmark Prompt:</label>
+          <input type="text" id="promptInput" value="Write a Python function to check if a string is a palindrome." placeholder="Enter test prompt">
+        </div>
+
+        <!-- Filter Chips -->
+        <div class="filter-section">
+          <label>Filter Model List:</label>
+          <div class="chip-group" id="filterChips">
+            <button class="chip active" data-filter="all">All Models</button>
+            <button class="chip" data-filter="coding">Coding & Development</button>
+            <button class="chip" data-filter="reasoning">Reasoning & Logic</button>
+            <button class="chip" data-filter="qwen">Qwen / DeepSeek</button>
+            <button class="chip" data-filter="meta">Meta Llama</button>
+            <button class="chip" data-filter="mistral">Mistral AI</button>
+          </div>
+        </div>
+
+        <div class="selection-actions">
+          <div class="select-counters">
+            <span id="selectedCountText">6 models selected</span>
+          </div>
+          <div class="btn-group">
+            <button id="btnSelectAll" class="btn-sm btn-ghost">Select Visible</button>
+            <button id="btnDeselectAll" class="btn-sm btn-ghost">Deselect All</button>
+            <button id="btnSelectRecommended" class="btn-sm btn-outline">Select Top Recommended</button>
+          </div>
+        </div>
+
+        <button id="btnRunProbe" class="btn btn-primary btn-block">
+          <span class="icon">🚀</span> Run Real-Time Responsiveness Test
+        </button>
+      </section>
+
+      <!-- Live Benchmark Results Panel -->
+      <section class="card results-card">
+        <div class="card-header">
+          <h2><span class="icon">📊</span> Real-Time Latency & Throughput Rankings</h2>
+          <div class="header-status">
+            <span id="lastUpdatedTime" class="timestamp">Not run yet</span>
+          </div>
+        </div>
+
+        <div id="progressContainer" class="progress-bar-container hidden">
+          <div class="progress-info">
+            <span id="progressText">Testing latency across selected models...</span>
+            <span id="progressPercent">0%</span>
+          </div>
+          <div class="progress-track">
+            <div id="progressBar" class="progress-fill"></div>
+          </div>
+        </div>
+
+        <div class="table-controls">
+          <div class="search-box">
+            <input type="text" id="tableSearchInput" placeholder="Search results by model name...">
+          </div>
+          <div class="sort-box">
+            <label for="sortSelect">Sort By:</label>
+            <select id="sortSelect">
+              <option value="ttft">Queue Latency / TTFT (Fastest First)</option>
+              <option value="tps">Throughput / TPS (Highest First)</option>
+              <option value="totalTime">Total Time (Fastest First)</option>
+              <option value="name">Model Name (A-Z)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <table class="data-table" id="resultsTable">
+            <thead>
+              <tr>
+                <th width="4%">Select</th>
+                <th width="32%">Model Name / API Endpoint</th>
+                <th width="18%">Queue Latency (TTFT)</th>
+                <th width="14%">Speed (Tokens/s)</th>
+                <th width="18%">Status & Health</th>
+                <th width="14%">Sweet Spot Rank</th>
+              </tr>
+            </thead>
+            <tbody id="resultsTableBody">
+              <tr class="empty-state">
+                <td colspan="6">
+                  <div class="placeholder-box">
+                    <div class="placeholder-icon">📡</div>
+                    <h3>No Latency Test Executed Yet</h3>
+                    <p>Enter your NVIDIA API Key and click <strong>"Run Real-Time Responsiveness Test"</strong> to probe model queue times in real time.</p>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <!-- Modal for OpenCode Config Generator -->
+    <div id="configModal" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3><span class="icon">💻</span> Generated OpenCode Configuration</h3>
+          <button id="btnCloseModal" class="btn-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p>Copy this optimized JSON configuration into your <code>~/.config/opencode/opencode.json</code> file to utilise your selected models in OpenCode:</p>
+          <div class="code-block-wrapper">
+            <pre><code id="configJsonCode">// Generating configuration...</code></pre>
+            <button id="btnCopyConfig" class="btn btn-secondary btn-sm copy-btn">📋 Copy JSON</button>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="btnCloseModalBtn" class="btn btn-primary">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>Built for OpenCode Integration • Powered by NVIDIA Build API (NIM Microservices)</p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
