@@ -10,17 +10,30 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Virtual environments
+# Python virtual environments
 .venv/
 venv/
 env/
+ENV/
+*.venv
+
+# Database files & local state
+*.db
+*.sqlite
+*.sqlite3
 
 # Environment files & secrets
 .env
+*.env
+secrets.sops.env
 *.secret
+*.pem
+*.key
 
 # OS & Editor temp files
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
+*.swp
+*.swo
