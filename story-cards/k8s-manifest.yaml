@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: story-cards
+  namespace: default
+  labels:
+    app: story-cards
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: story-cards
+  template:
+    metadata:
+      labels:
+        app: story-cards
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: lab-vm
+      containers:
+      - name: story-cards
+        image: python:3.11-slim
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          cd /app && python3 -u app.py & python3 -u review_worker.py
+        ports:
+        - containerPort: 33363
+        volumeMounts:
+        - name: app-code
+          mountPath: /app
+      volumes:
+      - name: app-code
+        hostPath:
+          path: /home/k/web-apps/story-cards
+          type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: story-cards-service
+  namespace: default
+spec:
+  type: NodePort
+  selector:
+    app: story-cards
+  ports:
+  - port: 33363
+    targetPort: 33363
+    nodePort: 30363
