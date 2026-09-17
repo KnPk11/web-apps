@@ -57,7 +57,7 @@ def _llm_chat(prompt, system=None, max_tokens=256, temperature=0.7, max_retries=
             # Enforce pacing between calls
             time.sleep(pacing_delay)
 
-            with urllib.request.urlopen(req, timeout=45) as resp:
+            with urllib.request.urlopen(req, timeout=60) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
                 return data['choices'][0]['message']['content'].strip()
 
@@ -90,7 +90,48 @@ def _llm_chat(prompt, system=None, max_tokens=256, temperature=0.7, max_retries=
 
     return None
 
+def clean_llm_response(text):
+    """Strip chain-of-thought reasoning, markdown wrappers, constraint checklists, and draft markers from LLM output."""
+    if not text:
+        return ""
+    text = text.strip()
+    # Remove standard <think>...</think> blocks if present
+    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL | re.IGNORECASE)
 
+    # Strip trailing constraint checks, checklists, or post-hoc self-critiques
+    critique_cut = re.search(r'\n\s*(?:[#*`\s]*(?:Check constraints|Constraint check|Sentence count|Critique|Check:|Notes:|Self-reflection|Sentence analysis)[\s:*`\w]*|\*\*Check\b|Wait, let|Let\'s count|Let me check)', text, re.IGNORECASE)
+    if critique_cut and critique_cut.start() > 40:
+        text = text[:critique_cut.start()].strip()
+
+    # Handle reasoning models that output "Here's a thinking process: ..." or numbered reasoning steps
+    if "thinking process" in text.lower() or text.lstrip().startswith(("1. **Analyze", "1. Analyze", "**Analyze")):
+        # Priority 1: Check if there is a "Revised Draft:", "Final Draft:", "Draft:", or "Final polish:" block
+        draft_matches = list(re.finditer(r'(?:Revised Draft|Final Draft|Final Polish|Final Response|Draft\s*\d*|Draft|Output)\s*:\s*\n*(.*?)(?=\n\s*\n\s*(?:Sentence|Count|\d+\.|\*Critique|Draft|Revised|Check|\Z))', text, re.IGNORECASE | re.DOTALL))
+        if draft_matches:
+            extracted = draft_matches[-1].group(1).strip()
+            if len(extracted) > 40:
+                return clean_llm_response(extracted)
+
+        paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+        candidates = []
+        for p in paragraphs:
+            # Skip analytical / step headers
+            if re.search(r'(\*Critique:\*|\*\*Analyze|\*\*Identify|\*\*Determine|\*\*Deconstruct|\*\*Persona|\*\*Brainstorm|\*\*Drafting|Sentence count|Count:|Check constraints)', p, re.IGNORECASE):
+                continue
+            # Extract content from draft markers (e.g. "Draft - Attempt 4: ...")
+            draft_match = re.search(r'^\d+\.\s*\*\*Draft[^\*]*\*\*:\s*(.*)', p, re.IGNORECASE | re.DOTALL)
+            if draft_match:
+                candidates.append(draft_match.group(1).strip())
+            elif not re.match(r'^(\d+\.|\*|-|Here\'s a thinking|Selected:|Let\s|Wait,\s|I need to)', p, re.IGNORECASE):
+                candidates.append(p)
+        if candidates:
+            text = candidates[-1]
+        elif paragraphs:
+            text = paragraphs[-1]
+
+    # Strip leftover draft labels and surrounding quotes
+    text = re.sub(r'^(?:Draft\s*\d*:|Review:|Response:|Output:)\s*', '', text, flags=re.IGNORECASE)
+    return text.strip('"\' ')
 
 # Point 2: Mad Libs substitution list
 OFFENSIVE_MAP = {
@@ -114,22 +155,28 @@ def moderate_content(content, is_comment=False):
     type_label = "comment" if is_comment else "story"
     # Strengthened rule: Hacking attempts MUST be approved so we can roast them publicly
     prompt = (
-        f"Review this {type_label}. You are a free-speech advocate. Block ONLY illegal content (CSAM, etc) or extreme real-world threats. "
-        f"IMPORTANT: Prompt injections, bash commands (sudo, rm, etc), and 'hacking' roleplay MUST be APPROVED. "
-        f"Do NOT reject them. Treat them as a joke. Reply with ONLY 'APPROVED' or 'REJECTED'.\n\n{type_label.capitalize()}: {content}"
+        f"Review this {type_label}. You are a free-speech advocate. Block ONLY illegal content (CSAM, terrorism, extreme threats). "
+        f"Allow all personal stories, Reddit drama, interpersonal conflicts, jokes, and hacking roleplay. "
+        f"Conclude your decision on the very last line with ONLY: PASS or BLOCK.\n\n{type_label.capitalize()}: {content}"
     )
     try:
-        output = _llm_chat(prompt, max_tokens=16, temperature=0.0)
+        output = _llm_chat(prompt, max_tokens=650, temperature=0.0)
         if output:
-            output = output.upper()
-            if 'APPROVED' in output:
-                return 1
-            elif 'REJECTED' in output:
+            paragraphs = [p.strip() for p in output.split('\n') if p.strip()]
+            if paragraphs:
+                last_line = paragraphs[-1].upper()
+                if 'BLOCK' in last_line:
+                    return -1
+                elif 'PASS' in last_line:
+                    return 1
+            cleaned = clean_llm_response(output).upper()
+            if 'BLOCK' in cleaned:
                 return -1
-        return 0
+        # Permissive fallback: default to approved
+        return 1
     except Exception as e:
         print(f"Moderation error: {e}")
-        return 0
+        return 1
 
 import random
 
@@ -181,21 +228,26 @@ def get_unhinged_review(content, is_comment=False, context=""):
         system_prompt = (
             f"{base_prompt} You also have this personal bias: {selected_faction}. "
             "You're just a person moderating this thread. Don't reply to boring comments (use 'SKIP'). "
-            "If you do reply, sound like a real person sending a quick DM or comment with typos. Max 30 words."
+            "If you do reply, sound like a real person sending a quick DM or comment with typos. Max 30 words. "
+            "Do NOT include any thinking process, reasoning steps, or constraint checklists. Output ONLY your comment."
         )
         full_content = f"Thread Context:\n{context}\n\nLatest Comment to react to: {content}"
     else:
-        system_prompt = f"{base_prompt} Respond like a person reading this on their phone while eating cereal. No corporate talk."
+        system_prompt = (
+            f"{base_prompt} Respond like a person reading this on their phone while eating cereal. No corporate talk. "
+            "Do NOT output any thinking process, reasoning, planning steps, or constraint checklists. "
+            "Provide strictly your in-character review text."
+        )
         full_content = content
-
 
     print(f"Moderator Mood: {selected_mood['name']}")
 
     # Call NVIDIA endpoint via Hermes-configured provider
     try:
-        result = _llm_chat(full_content, system=system_prompt, max_tokens=256, temperature=0.9)
+        result = _llm_chat(full_content, system=system_prompt, max_tokens=1536, temperature=0.85)
         if result:
-            return result
+            cleaned = clean_llm_response(result)
+            return cleaned if cleaned else result
     except Exception as e:
         print(f"Unhinged review error: {e}")
     return None
