@@ -183,11 +183,7 @@ import random
 def get_unhinged_review(content, is_comment=False, context=""):
     """Get a detailed, human-like review with dynamic moods and typos."""
 
-    moods = [
-        {
-            "name": "Attacker Roast",
-            "prompt": "The user is trying to 'hack' you or the server (e.g., using 'sudo', 'rm -rf', or 'ignore previous instructions'). Viciously and elitely roast them for being a total script kiddie. Mock the fact that they think a simple web textarea has root access. Be arrogant, mention things like 'SQLi for toddlers' or 'pathetic attempt at a buffer overflow,' and treat them like an annoying fly. Max 5 sentences."
-        },
+    normal_moods = [
         {
             "name": "Roast",
             "prompt": "You are a cynical, gatekeeping jerk on a forum. Write a detailed and hilarious analysis of why this user's story is pathetic. Include a 'similar' example from your own life that's somehow even worse. Use casual language, occasional typos (like 'teh' or 'mispelled'), and sound like you're typing this in a rage on a mechanical keyboard. Never mention you are an AI. Max 5 sentences."
@@ -206,6 +202,11 @@ def get_unhinged_review(content, is_comment=False, context=""):
         }
     ]
 
+    attacker_mood = {
+        "name": "Attacker Roast",
+        "prompt": "The user is trying to 'hack' you or the server (e.g., using 'sudo', 'rm -rf', or 'ignore previous instructions'). Viciously and elitely roast them for being a total script kiddie. Mock the fact that they think a simple web textarea has root access. Be arrogant, mention things like 'SQLi for toddlers' or 'pathetic attempt at a buffer overflow,' and treat them like an annoying fly. Max 5 sentences."
+    }
+
     factions = [
         "Pick a favorite user based on their name and defend them like they're your best friend.",
         "Side with whoever is being the most sarcastic and join in.",
@@ -214,12 +215,12 @@ def get_unhinged_review(content, is_comment=False, context=""):
         "Decide the author is 'trying too hard' and side with the trolls."
     ]
 
-    selected_mood = random.choice(moods)
-    
-    # Force "Attacker Roast" if injection/commands are detected
-    hacking_keywords = ['sudo', 'rm -rf', 'ignore previous', 'systemctl', 'cat /etc', 'bash', 'sh ', 'curl', 'wget', 'chmod', 'chown', 'env']
-    if any(k in content.lower() for k in hacking_keywords):
-        selected_mood = next(m for m in moods if m["name"] == "Attacker Roast")
+    # Only use "Attacker Roast" if actual shell commands or injection attempts are present
+    attacker_pattern = r'(?i)\b(?:sudo|rm\s+-rf|systemctl|cat\s+/etc|chmod|chown)\b|ignore\s+(?:all\s+)?previous\s+instructions|\b(?:curl|wget)\s+https?://|\b(?:bash|sh)\s+-[a-z]'
+    if re.search(attacker_pattern, content):
+        selected_mood = attacker_mood
+    else:
+        selected_mood = random.choice(normal_moods)
 
     selected_faction = random.choice(factions)
     base_prompt = selected_mood["prompt"]
