@@ -123,7 +123,7 @@ def fetch_reddit_story():
                 
                 # Skip meta / sticky / megathread / mod announcement posts
                 title_lower = title.lower()
-                if any(k in title_lower for k in ['[meta]', 'megathread', 'weekly', 'rules', 'reminder', 'announcement', 'community update', 'moderator']):
+                if any(k in title_lower for k in ['[meta]', 'megathread', 'weekly', 'rules', 'reminder', 'announcement', 'community update', 'moderator', 'welcome', 'discussion thread']):
                     continue
 
                 author_el = entry.find('atom:author/atom:name', ns)
