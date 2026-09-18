@@ -130,7 +130,7 @@ def clean_llm_response(text):
             text = paragraphs[-1]
 
     # Strip leftover draft labels and surrounding quotes
-    text = re.sub(r'^(?:Draft\s*\d*:|Review:|Response:|Output:)\s*', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'^(?:\d+\.\s*\*\*Draft.*?\*\*[:\s]*|Draft\s*\d*:|Review:|Response:|Output:)\s*', '', text, flags=re.IGNORECASE)
     return text.strip('"\' ')
 
 # Point 2: Mad Libs substitution list
@@ -160,18 +160,16 @@ def moderate_content(content, is_comment=False):
         f"Conclude your decision on the very last line with ONLY: PASS or BLOCK.\n\n{type_label.capitalize()}: {content}"
     )
     try:
-        output = _llm_chat(prompt, max_tokens=650, temperature=0.0)
+        output = _llm_chat(prompt, max_tokens=1200, temperature=0.0)
         if output:
-            paragraphs = [p.strip() for p in output.split('\n') if p.strip()]
-            if paragraphs:
-                last_line = paragraphs[-1].upper()
-                if 'BLOCK' in last_line:
+            lines = [l.strip() for l in output.strip().split('\n') if l.strip()]
+            for l in reversed(lines[-3:]):
+                upper_l = l.upper()
+                if re.search(r'\bBLOCK\b', upper_l) and not re.search(r'\bPASS\b', upper_l):
                     return -1
-                elif 'PASS' in last_line:
+                elif re.search(r'\bPASS\b', upper_l):
                     return 1
-            cleaned = clean_llm_response(output).upper()
-            if 'BLOCK' in cleaned:
-                return -1
+
         # Permissive fallback: default to approved
         return 1
     except Exception as e:
