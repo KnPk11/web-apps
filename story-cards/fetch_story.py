@@ -33,10 +33,24 @@ if os.path.exists(ENV_PATH):
 
 NVIDIA_BASE_URL = os.environ.get('NVIDIA_BASE_URL', 'https://integrate.api.nvidia.com/v1')
 NVIDIA_API_KEY = os.environ.get('NVIDIA_API_KEY', '')
-NVIDIA_MODEL = os.environ.get('NVIDIA_MODEL', 'nvidia/nemotron-3.5-lightning-30b-a3b')
+NVIDIA_MODEL = os.environ.get('NVIDIA_MODEL', 'nvidia/nemotron-3-ultra-550b-a55b')
 
-SUBREDDITS = ['tifu', 'confession', 'CasualConversation', 'AmItheAsshole']
+# Financial & market loss subreddits (heavily prioritized)
+FINANCIAL_SUBREDDITS = ['wallstreetbets', 'pennystocks', 'CryptoCurrency', 'options', 'investing']
+# General narrative subreddits (secondary / variety)
+GENERAL_SUBREDDITS = ['tifu', 'confession', 'CasualConversation', 'AmItheAsshole']
+
 USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 StoryCardsHomelab/1.0'
+
+# Keywords indicating financial disaster, trading losses, or bad investment regrets
+FINANCIAL_LOSS_KEYWORDS = [
+    'loss', 'lost', 'saving', '0dte', 'yolo', 'margin', 'liquidat',
+    'dip', 'option', 'call', 'put', 'gamble', 'broke', 'debt',
+    'invest', 'penny stock', 'crypto', 'bitcoin', 'portfolio', 'down 9',
+    'down 8', 'down 7', 'down 5', 'blew', 'all-in', 'rugpull', 'rug pull',
+    'bankrupt', 'ruined', 'guh', 'wendy', 'retard', 'stupid', 'regret',
+    'crash', 'tank', 'scam', 'short', 'leverag'
+]
 
 FUNNY_NICKNAMES = [
     "SarcasticPenguin", "CaptainUnderpants", "ExistentialCucumber",
@@ -49,11 +63,12 @@ FUNNY_NICKNAMES = [
 ]
 
 FALLBACK_PROMPTS = [
-    "Write a funny, self-deprecating first-person story about a catastrophic cooking or baking fail.",
-    "Write an absurd, real-sounding first-person story about an embarrassing mix-up at work or in a public setting.",
-    "Write a hilarious first-person story about a DIY home improvement attempt that went completely wrong.",
-    "Write a relatable and funny first-person story about a pet causing total chaos at the worst possible time.",
-    "Write an entertaining first-person story about an accidental text or email blunder.",
+    "Write a hilarious, self-deprecating first-person confession about losing a huge sum of money or life savings on a terribly thought-out stock options play or meme crypto investment.",
+    "Write a funny and absurd first-person confession about trying to day trade while at work, getting margin called, and the resulting chaos.",
+    "Write an entertaining first-person story about putting rent or college money into an obscure penny stock or crypto rugpull based on bad Reddit advice.",
+    "Write a chaotic first-person story about accidentally placing a massive market order instead of a limit order on a volatile stock and immediately watching it tank.",
+    "Write an absurd, real-sounding first-person story about an embarrassing mix-up in a public setting.",
+    "Write a relatable and funny first-person story about a catastrophic cooking or baking fail.",
 ]
 
 def get_db():
@@ -99,13 +114,24 @@ def clean_reddit_text(raw_html):
     return text.strip()
 
 def fetch_reddit_story():
-    """Attempt to fetch a narrative story from Reddit RSS."""
-    subreddits = list(SUBREDDITS)
-    random.shuffle(subreddits)
+    """Attempt to fetch a narrative story from Reddit RSS, heavily prioritizing financial & investment disasters."""
+    # 75% of the time, prioritize market/crypto/options disaster subs
+    fin_subs = list(FINANCIAL_SUBREDDITS)
+    random.shuffle(fin_subs)
+    gen_subs = list(GENERAL_SUBREDDITS)
+    random.shuffle(gen_subs)
+
+    if random.random() < 0.75:
+        subreddits = fin_subs + gen_subs
+    else:
+        subreddits = gen_subs + fin_subs
 
     conn = get_db()
 
-    for sub in subreddits:
+    for idx, sub in enumerate(subreddits):
+        if idx > 0:
+            time.sleep(2.0)
+
         url = f"https://www.reddit.com/r/{sub}/hot.rss"
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Checking r/{sub} ({url})...")
         try:
@@ -116,6 +142,16 @@ def fetch_reddit_story():
             root = ET.fromstring(xml_data)
             ns = {'atom': 'http://www.w3.org/2005/Atom'}
             entries = root.findall('atom:entry', ns)
+
+            # Sort entries so posts matching investment failure/loss keywords come first
+            def rate_entry(e):
+                t_el = e.find('atom:title', ns)
+                t_txt = t_el.text.lower() if t_el is not None else ""
+                c_el = e.find('atom:content', ns)
+                c_txt = c_el.text.lower() if c_el is not None else ""
+                return sum(1 for kw in FINANCIAL_LOSS_KEYWORDS if kw in t_txt or kw in c_txt[:600])
+
+            entries.sort(key=rate_entry, reverse=True)
 
             for entry in entries:
                 title_el = entry.find('atom:title', ns)
