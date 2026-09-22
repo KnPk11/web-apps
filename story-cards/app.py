@@ -200,6 +200,24 @@ class StoryHandler(BaseHTTPRequestHandler):
                 conn.commit(); conn.close()
                 self.send_response(201); self.end_headers()
 
+        elif url.path == '/api/upvote':
+            story_id = data.get('id')
+            delta = data.get('delta', 1)
+            if not story_id or delta not in (1, -1):
+                self.send_response(400); self.end_headers(); return
+            
+            conn = get_db(); cursor = conn.cursor()
+            cursor.execute('UPDATE stories SET upvotes = MAX(0, COALESCE(upvotes, 0) + ?) WHERE id = ?', (delta, story_id))
+            conn.commit()
+            cursor.execute('SELECT upvotes FROM stories WHERE id = ?', (story_id,))
+            row = cursor.fetchone()
+            conn.close()
+            new_count = row['upvotes'] if row and row['upvotes'] is not None else 0
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({'id': story_id, 'upvotes': new_count}).encode())
+
         elif url.path == '/api/rehabilitate':
             # Point 3: User edits their rejected content
             item_id = data.get('id')
@@ -228,7 +246,7 @@ class StoryHandler(BaseHTTPRequestHandler):
 
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    if not os.path.exists(DB_PATH): init_db()
+    init_db()
     # Use ThreadingHTTPServer to handle multiple requests without hanging
     server = ThreadingHTTPServer(('0.0.0.0', PORT), StoryHandler)
     print(f'Multi-threaded Server running at http://localhost:{PORT}')

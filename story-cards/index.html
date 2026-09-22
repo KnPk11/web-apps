@@ -696,6 +696,145 @@
             border: 1px dashed rgba(255, 255, 255, 0.1);
             color: var(--text);
         }
+
+        /* Feed Controls Bar & Sorting Tabs */
+        .feed-tabs-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+
+        .feed-tabs {
+            display: flex;
+            gap: 6px;
+            background: rgba(15, 23, 42, 0.7);
+            padding: 4px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .feed-tab {
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 0.85em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .feed-tab:hover {
+            color: var(--text);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .feed-tab.active {
+            background: var(--accent);
+            color: #0f172a;
+            font-weight: 700;
+            box-shadow: 0 2px 8px rgba(34, 211, 238, 0.3);
+        }
+
+        .tab-count {
+            background: rgba(15, 23, 42, 0.35);
+            color: inherit;
+            padding: 1px 6px;
+            border-radius: 10px;
+            font-size: 0.75em;
+            font-weight: bold;
+        }
+
+        .feed-tools {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        /* Story Card Action Buttons (Upvote & Bookmark) */
+        .story-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .upvote-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: var(--text-dim);
+            padding: 3px 9px;
+            border-radius: 6px;
+            font-size: 0.8em;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .upvote-btn:hover {
+            border-color: #f97316;
+            color: #f97316;
+            background: rgba(249, 115, 22, 0.1);
+            transform: translateY(-1px);
+        }
+
+        .upvote-btn.voted {
+            border-color: #f97316;
+            color: #f97316;
+            background: rgba(249, 115, 22, 0.2);
+            box-shadow: 0 0 10px rgba(249, 115, 22, 0.3);
+        }
+
+        .upvote-arrow {
+            font-size: 0.9em;
+            transition: transform 0.15s;
+        }
+
+        .upvote-btn:active .upvote-arrow {
+            transform: translateY(-2px);
+        }
+
+        .bookmark-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: var(--text-dim);
+            padding: 3px 9px;
+            border-radius: 6px;
+            font-size: 0.8em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .bookmark-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: rgba(34, 211, 238, 0.1);
+            transform: translateY(-1px);
+        }
+
+        .bookmark-btn.bookmarked {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: rgba(34, 211, 238, 0.2);
+            font-weight: 700;
+            box-shadow: 0 0 10px rgba(34, 211, 238, 0.3);
+        }
 </style>
 </head>
 <body>
@@ -705,13 +844,30 @@
             <p style="color: var(--text-dim)">Latest stories and moderator roasts</p>
         </div>
 
-        <div style="display: flex; justify-content: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
-            <button class="toggle-extras-btn" id="calendar-btn" onclick="toggleCalendar()">
-                <span>📅</span> Archive Calendar <span id="calendar-chevron">▼</span>
-            </button>
-            <button class="toggle-extras-btn" id="extras-btn" style="display: none;" onclick="toggleExtras()">
-                <span>🌟</span> Community Extras <span id="extras-chevron">▼</span>
-            </button>
+        <div class="submit-section">
+            <div class="submit-grid">
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+                    <div id="nick-display" class="user-badge" style="display: none; align-self: flex-start; width: fit-content; margin-bottom: 0;" onclick="changeNickname()"></div>
+                    <textarea id="content" rows="2" placeholder="What happened today?" maxlength="10000"></textarea>
+                </div>
+                <button onclick="submitStory()">Post Story</button>
+            </div>
+        </div>
+
+        <div class="feed-tabs-bar">
+            <div class="feed-tabs">
+                <button class="feed-tab active" id="tab-latest" onclick="setFeedTab('latest')">🕒 Latest</button>
+                <button class="feed-tab" id="tab-top" onclick="setFeedTab('top')">▲ Top Rated</button>
+                <button class="feed-tab" id="tab-saved" onclick="setFeedTab('saved')">🔖 Saved <span class="tab-count" id="saved-count">0</span></button>
+            </div>
+            <div class="feed-tools">
+                <button class="toggle-extras-btn" id="calendar-btn" onclick="toggleCalendar()" style="margin-bottom: 0;">
+                    <span>📅</span> Archive Calendar <span id="calendar-chevron">▼</span>
+                </button>
+                <button class="toggle-extras-btn" id="extras-btn" style="display: none; margin-bottom: 0;" onclick="toggleExtras()">
+                    <span>🌟</span> Extras <span id="extras-chevron">▼</span>
+                </button>
+            </div>
         </div>
 
         <div class="calendar-drawer" id="calendar-drawer">
@@ -756,16 +912,6 @@
             </div>
         </div>
 
-        <div class="submit-section">
-            <div class="submit-grid">
-                <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
-                    <div id="nick-display" class="user-badge" style="display: none; align-self: flex-start; width: fit-content; margin-bottom: 0;" onclick="changeNickname()"></div>
-                    <textarea id="content" rows="2" placeholder="What happened today?" maxlength="10000"></textarea>
-                </div>
-                <button onclick="submitStory()">Post Story</button>
-            </div>
-        </div>
-
         <div id="archive-filter-banner" class="archive-filter-banner" style="display: none;">
             <div class="banner-left">
                 <span class="banner-icon">📅</span>
@@ -791,6 +937,88 @@
         let calYear = new Date().getFullYear();
         let calMonth = new Date().getMonth();
         let selectedArchiveDate = null;
+        let currentFeedTab = 'latest'; // 'latest' | 'top' | 'saved'
+
+        // Local Storage Helpers for Bookmarks & Upvotes
+        function getSavedStoryIds() {
+            try { return JSON.parse(localStorage.getItem('storycards_saved_stories') || '[]'); }
+            catch (e) { return []; }
+        }
+
+        function setSavedStoryIds(ids) {
+            localStorage.setItem('storycards_saved_stories', JSON.stringify(ids));
+            updateSavedCount();
+        }
+
+        function updateSavedCount() {
+            const el = document.getElementById('saved-count');
+            if (el) el.innerText = getSavedStoryIds().length;
+        }
+
+        function getVotedStoryIds() {
+            try { return JSON.parse(localStorage.getItem('storycards_voted_stories') || '[]'); }
+            catch (e) { return []; }
+        }
+
+        function setVotedStoryIds(ids) {
+            localStorage.setItem('storycards_voted_stories', JSON.stringify(ids));
+        }
+
+        function setFeedTab(tab) {
+            currentFeedTab = tab;
+            document.querySelectorAll('.feed-tab').forEach(el => el.classList.remove('active'));
+            const activeEl = document.getElementById(`tab-${tab}`);
+            if (activeEl) activeEl.classList.add('active');
+            renderFeedView();
+        }
+
+        function toggleBookmark(storyId) {
+            const saved = getSavedStoryIds();
+            const idx = saved.indexOf(storyId);
+            if (idx > -1) {
+                saved.splice(idx, 1);
+            } else {
+                saved.push(storyId);
+            }
+            setSavedStoryIds(saved);
+            renderFeedView();
+        }
+
+        async function toggleUpvote(storyId) {
+            const voted = getVotedStoryIds();
+            const isVoted = voted.indexOf(storyId) > -1;
+            const delta = isVoted ? -1 : 1;
+
+            if (isVoted) {
+                voted.splice(voted.indexOf(storyId), 1);
+            } else {
+                voted.push(storyId);
+            }
+            setVotedStoryIds(voted);
+
+            const story = allStoriesCache.find(s => s.id === storyId);
+            if (story) {
+                story.upvotes = Math.max(0, (story.upvotes || 0) + delta);
+            }
+
+            const btn = document.getElementById(`upvote-btn-${storyId}`);
+            const countEl = document.getElementById(`upvote-count-${storyId}`);
+            if (btn) btn.classList.toggle('voted', !isVoted);
+            if (countEl && story) countEl.innerText = story.upvotes;
+
+            try {
+                const res = await fetch('/api/upvote', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: storyId, delta })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (story) story.upvotes = data.upvotes;
+                    if (countEl) countEl.innerText = data.upvotes;
+                }
+            } catch (e) { console.error('Upvote failed:', e); }
+        }
 
         const MONTH_NAMES = [
             "January", "February", "March", "April", "May", "June",
@@ -955,14 +1183,35 @@
         }
 
         function getFilteredStories() {
-            if (!selectedArchiveDate) return allStoriesCache;
-            return allStoriesCache.filter(s => getStoryDateKey(s.created_at) === selectedArchiveDate);
+            let list = allStoriesCache.slice();
+
+            // 1. Filter by date if active
+            if (selectedArchiveDate) {
+                list = list.filter(s => getStoryDateKey(s.created_at) === selectedArchiveDate);
+            }
+
+            // 2. Filter by saved tab
+            if (currentFeedTab === 'saved') {
+                const savedIds = getSavedStoryIds();
+                list = list.filter(s => savedIds.includes(s.id));
+            }
+
+            // 3. Sort
+            if (currentFeedTab === 'top') {
+                list.sort((a, b) => ((b.upvotes || 0) - (a.upvotes || 0)) || (b.id - a.id));
+            } else {
+                // Latest
+                list.sort((a, b) => b.id - a.id);
+            }
+
+            return list;
         }
 
         function renderFeedView() {
             const feed = document.getElementById('feed');
             const myNick = getStoredNick();
             const storiesToRender = getFilteredStories();
+            updateSavedCount();
 
             // Save input values
             const savedInputs = {};
@@ -974,12 +1223,26 @@
             if (storiesToRender.length === 0) {
                 const emptyMsg = document.createElement('div');
                 emptyMsg.className = 'empty-archive-state';
-                emptyMsg.innerHTML = `
-                    <div style="font-size: 2em; margin-bottom: 10px;">📭</div>
-                    <div style="font-weight: 700; margin-bottom: 6px;">No stories archived for this date</div>
-                    <div style="font-size: 0.85em; color: var(--text-dim); margin-bottom: 15px;">Pick a date with an activity dot on the calendar or return to the live feed.</div>
-                    <button class="cal-quick-btn" onclick="clearDateFilter()">Show All Stories</button>
-                `;
+                if (currentFeedTab === 'saved') {
+                    emptyMsg.innerHTML = `
+                        <div style="font-size: 2em; margin-bottom: 10px;">🔖</div>
+                        <div style="font-weight: 700; margin-bottom: 6px;">No saved stories yet</div>
+                        <div style="font-size: 0.85em; color: var(--text-dim); margin-bottom: 15px;">Click the 🔖 button on any story card to bookmark your favourites and revisit them here.</div>
+                        <button class="cal-quick-btn" onclick="setFeedTab('latest')">Browse Live Feed</button>
+                    `;
+                } else if (selectedArchiveDate) {
+                    emptyMsg.innerHTML = `
+                        <div style="font-size: 2em; margin-bottom: 10px;">📭</div>
+                        <div style="font-weight: 700; margin-bottom: 6px;">No stories archived for this date</div>
+                        <div style="font-size: 0.85em; color: var(--text-dim); margin-bottom: 15px;">Pick a date with an activity dot on the calendar or return to the live feed.</div>
+                        <button class="cal-quick-btn" onclick="clearDateFilter()">Show All Stories</button>
+                    `;
+                } else {
+                    emptyMsg.innerHTML = `
+                        <div style="font-size: 2em; margin-bottom: 10px;">📭</div>
+                        <div style="font-weight: 700; margin-bottom: 6px;">No stories to display</div>
+                    `;
+                }
                 feed.appendChild(emptyMsg);
                 return;
             }
@@ -1102,6 +1365,12 @@
             const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const timestamp = `${dateStr}, ${timeStr}`;
 
+            const savedIds = getSavedStoryIds();
+            const votedIds = getVotedStoryIds();
+            const isBookmarked = savedIds.includes(story.id);
+            const isVoted = votedIds.includes(story.id);
+            const upvotesCount = story.upvotes || 0;
+
             const needsTruncation = story.content.length > 300;
             let contentHtml = `
                 <div class="story-body-container ${isPending && !isMine ? 'is-pending' : ''}" 
@@ -1132,7 +1401,17 @@
                         ${story.moderated === 0 ? '<span class="badge badge-pending">Pending Moderation</span>' : ''}
                         ${isToxic ? '<span class="badge badge-deleted">Deleted</span>' : ''}
                     </span>
-                    <span class="timestamp">${timestamp}</span>
+                    <div class="story-actions">
+                        <button class="upvote-btn ${isVoted ? 'voted' : ''}" id="upvote-btn-${story.id}" onclick="toggleUpvote(${story.id})" title="${isVoted ? 'Remove upvote' : 'Upvote story'}">
+                            <span class="upvote-arrow">▲</span>
+                            <span class="upvote-count" id="upvote-count-${story.id}">${upvotesCount}</span>
+                        </button>
+                        <button class="bookmark-btn ${isBookmarked ? 'bookmarked' : ''}" onclick="toggleBookmark(${story.id})" title="${isBookmarked ? 'Remove bookmark' : 'Bookmark story'}">
+                            <span class="bookmark-icon">${isBookmarked ? '🔖' : '📑'}</span>
+                            <span class="bookmark-text">${isBookmarked ? 'Saved' : 'Save'}</span>
+                        </button>
+                        <span class="timestamp">${timestamp}</span>
+                    </div>
                 </div>
                 ${contentHtml}
                 ${story.moderated === 1 && story.review && story.review !== 'SKIPPED' ? `
@@ -1252,6 +1531,7 @@
         window.addEventListener('hashchange', checkUrlHash);
 
         updateUserBadge(getStoredNick());
+        updateSavedCount();
         fetchStories().then(() => {
             checkUrlHash();
         });
