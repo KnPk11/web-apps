@@ -78,14 +78,23 @@ class StoryHandler(BaseHTTPRequestHandler):
         elif url.path == '/api/stories':
             ua = self.headers.get('User-Agent', '')
             user_is_bot = is_bot(ua)
+            query_params = parse_qs(url.query)
+            date_filter = query_params.get('date', [None])[0]
+
             conn = get_db()
             cursor = conn.cursor()
             
             # If bot, ONLY show approved content. If human, show all (frontend filters)
+            conditions = []
+            params = []
             if user_is_bot:
-                cursor.execute('SELECT * FROM stories WHERE moderated = 1 ORDER BY created_at DESC')
-            else:
-                cursor.execute('SELECT * FROM stories ORDER BY created_at DESC')
+                conditions.append('moderated = 1')
+            if date_filter:
+                conditions.append('strftime("%Y-%m-%d", created_at) = ?')
+                params.append(date_filter)
+
+            where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+            cursor.execute(f'SELECT * FROM stories {where_clause} ORDER BY created_at DESC', params)
             
             stories = [dict(row) for row in cursor.fetchall()]
             # Add all comments for each story (newest first)

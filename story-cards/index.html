@@ -416,6 +416,286 @@
             position: relative;
             margin-bottom: 25px;
         }
+
+        /* Interactive Archive Calendar Styles */
+        .calendar-drawer {
+            display: none;
+            width: 100%;
+            flex-shrink: 0;
+            margin-bottom: 15px;
+            animation: fadeIn 0.25s ease-out;
+        }
+
+        .calendar-drawer.open {
+            display: block;
+        }
+
+        .calendar-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(34, 211, 238, 0.25);
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding: 0 4px;
+        }
+
+        .cal-nav-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: var(--text);
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1em;
+            transition: all 0.2s;
+        }
+
+        .cal-nav-btn:hover {
+            background: var(--accent);
+            color: #0f172a;
+            border-color: var(--accent);
+        }
+
+        .cal-title-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .cal-month-title {
+            font-weight: 700;
+            font-size: 1.05em;
+            color: var(--text);
+            letter-spacing: 0.5px;
+        }
+
+        .cal-month-count {
+            font-size: 0.75em;
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .calendar-weekdays {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            text-align: center;
+            font-size: 0.75em;
+            color: var(--text-dim);
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+        }
+
+        .cal-day {
+            aspect-ratio: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            font-size: 0.85em;
+            position: relative;
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid transparent;
+            transition: all 0.2s;
+            user-select: none;
+        }
+
+        .cal-day.empty {
+            background: transparent;
+            border: none;
+            pointer-events: none;
+        }
+
+        .cal-day.has-stories {
+            background: rgba(34, 211, 238, 0.08);
+            border-color: rgba(34, 211, 238, 0.3);
+            color: var(--text);
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .cal-day.has-stories:hover {
+            background: rgba(34, 211, 238, 0.2);
+            border-color: var(--accent);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(34, 211, 238, 0.2);
+        }
+
+        .cal-day.no-stories {
+            color: rgba(148, 163, 184, 0.35);
+            cursor: default;
+        }
+
+        .cal-day.is-today {
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .cal-day.selected {
+            background: var(--accent) !important;
+            color: #0f172a !important;
+            border-color: var(--accent) !important;
+            font-weight: 900 !important;
+            box-shadow: 0 0 15px rgba(34, 211, 238, 0.5);
+        }
+
+        .cal-day .story-dot {
+            position: absolute;
+            bottom: 3px;
+            font-size: 0.65em;
+            line-height: 1;
+            background: var(--mod-accent);
+            color: #064e3b;
+            padding: 1px 4px;
+            border-radius: 6px;
+            font-weight: 900;
+        }
+
+        .cal-day.selected .story-dot {
+            background: #0f172a;
+            color: var(--accent);
+        }
+
+        .calendar-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 0.8em;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .cal-quick-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .cal-quick-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: var(--text-dim);
+            padding: 4px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85em;
+            transition: all 0.2s;
+        }
+
+        .cal-quick-btn:hover {
+            color: var(--accent);
+            border-color: var(--accent);
+            background: rgba(34, 211, 238, 0.1);
+        }
+
+        .cal-legend {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-dim);
+            font-size: 0.8em;
+        }
+
+        .legend-badge {
+            background: var(--mod-accent);
+            color: #064e3b;
+            font-size: 0.7em;
+            font-weight: 900;
+            padding: 1px 5px;
+            border-radius: 4px;
+        }
+
+        /* Active Archive Filter Banner */
+        .archive-filter-banner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(135deg, rgba(6, 78, 59, 0.6) 0%, rgba(30, 41, 59, 0.8) 100%);
+            border: 1px solid var(--mod-accent);
+            border-radius: 12px;
+            padding: 10px 16px;
+            margin-bottom: 15px;
+            flex-shrink: 0;
+            animation: fadeIn 0.3s ease-out;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+        }
+
+        .banner-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .banner-icon {
+            font-size: 1.4em;
+        }
+
+        .banner-text {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .banner-title {
+            font-weight: 700;
+            font-size: 0.95em;
+            color: var(--text);
+        }
+
+        .banner-subtitle {
+            font-size: 0.75em;
+            color: var(--mod-accent);
+            font-weight: 600;
+        }
+
+        .banner-clear-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: var(--text);
+            padding: 5px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.8em;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .banner-clear-btn:hover {
+            background: var(--toxic);
+            color: #000;
+            border-color: var(--toxic);
+        }
+
+        .empty-archive-state {
+            text-align: center;
+            padding: 40px 20px;
+            background: var(--card-bg);
+            border-radius: 20px;
+            border: 1px dashed rgba(255, 255, 255, 0.1);
+            color: var(--text);
+        }
 </style>
 </head>
 <body>
@@ -425,10 +705,39 @@
             <p style="color: var(--text-dim)">Latest stories and moderator roasts</p>
         </div>
 
-        <div style="display: flex; justify-content: center;">
+        <div style="display: flex; justify-content: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
+            <button class="toggle-extras-btn" id="calendar-btn" onclick="toggleCalendar()">
+                <span>📅</span> Archive Calendar <span id="calendar-chevron">▼</span>
+            </button>
             <button class="toggle-extras-btn" id="extras-btn" style="display: none;" onclick="toggleExtras()">
                 <span>🌟</span> Community Extras <span id="extras-chevron">▼</span>
             </button>
+        </div>
+
+        <div class="calendar-drawer" id="calendar-drawer">
+            <div class="calendar-card">
+                <div class="calendar-header">
+                    <button class="cal-nav-btn" onclick="navMonth(-1)" title="Previous month" aria-label="Previous month">‹</button>
+                    <div class="cal-title-wrap">
+                        <span class="cal-month-title" id="cal-month-title">September 2026</span>
+                        <span class="cal-month-count" id="cal-month-count">0 stories archived</span>
+                    </div>
+                    <button class="cal-nav-btn" onclick="navMonth(1)" title="Next month" aria-label="Next month">›</button>
+                </div>
+                <div class="calendar-weekdays">
+                    <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+                </div>
+                <div class="calendar-grid" id="calendar-grid"></div>
+                <div class="calendar-footer">
+                    <div class="cal-quick-actions">
+                        <button class="cal-quick-btn" onclick="jumpToLatest()">Latest Stories</button>
+                        <button class="cal-quick-btn" onclick="clearDateFilter()" id="cal-clear-btn" style="display: none;">Show All</button>
+                    </div>
+                    <div class="cal-legend">
+                        <span class="legend-badge">●</span> Days with stories
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="extras-drawer" id="extras-drawer">
@@ -456,6 +765,18 @@
                 <button onclick="submitStory()">Post Story</button>
             </div>
         </div>
+
+        <div id="archive-filter-banner" class="archive-filter-banner" style="display: none;">
+            <div class="banner-left">
+                <span class="banner-icon">📅</span>
+                <div class="banner-text">
+                    <span class="banner-title" id="filter-banner-date">Date</span>
+                    <span class="banner-subtitle" id="filter-banner-count">0 stories archived</span>
+                </div>
+            </div>
+            <button class="banner-clear-btn" onclick="clearDateFilter()">✕ Show All Stories</button>
+        </div>
+
         <div class="feed-container" id="feed"></div>
     </div>
 
@@ -465,6 +786,212 @@
         let lastReviewHash = "";
         let currentPodcastFile = "";
         let allStoriesCache = [];
+
+        // Calendar Archive State
+        let calYear = new Date().getFullYear();
+        let calMonth = new Date().getMonth();
+        let selectedArchiveDate = null;
+
+        const MONTH_NAMES = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ];
+
+        function getStoryDateKey(created_at) {
+            if (!created_at) return '';
+            return created_at.substring(0, 10);
+        }
+
+        function getDateStoryCounts() {
+            const counts = {};
+            for (const story of allStoriesCache) {
+                const key = getStoryDateKey(story.created_at);
+                if (key) {
+                    counts[key] = (counts[key] || 0) + 1;
+                }
+            }
+            return counts;
+        }
+
+        function toggleCalendar() {
+            const drawer = document.getElementById('calendar-drawer');
+            const chevron = document.getElementById('calendar-chevron');
+            drawer.classList.toggle('open');
+            if (drawer.classList.contains('open')) {
+                chevron.innerText = '▲';
+                if (selectedArchiveDate) {
+                    const parts = selectedArchiveDate.split('-');
+                    calYear = parseInt(parts[0], 10);
+                    calMonth = parseInt(parts[1], 10) - 1;
+                } else if (allStoriesCache.length > 0 && allStoriesCache[0].created_at) {
+                    const key = getStoryDateKey(allStoriesCache[0].created_at);
+                    const parts = key.split('-');
+                    calYear = parseInt(parts[0], 10);
+                    calMonth = parseInt(parts[1], 10) - 1;
+                }
+                renderCalendar();
+            } else {
+                chevron.innerText = '▼';
+            }
+        }
+
+        function renderCalendar() {
+            const grid = document.getElementById('calendar-grid');
+            if (!grid) return;
+
+            const counts = getDateStoryCounts();
+            const firstDayDate = new Date(calYear, calMonth, 1);
+            let startingDay = firstDayDate.getDay() - 1;
+            if (startingDay < 0) startingDay = 6; // Monday = 0, Sunday = 6
+
+            const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+            const today = new Date();
+            const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+            let monthStoryTotal = 0;
+            grid.innerHTML = '';
+
+            // Empty cells before 1st of month
+            for (let i = 0; i < startingDay; i++) {
+                const emptyCell = document.createElement('div');
+                emptyCell.className = 'cal-day empty';
+                grid.appendChild(emptyCell);
+            }
+
+            // Days of the month
+            for (let day = 1; day <= daysInMonth; day++) {
+                const monthStr = String(calMonth + 1).padStart(2, '0');
+                const dayStr = String(day).padStart(2, '0');
+                const dateKey = `${calYear}-${monthStr}-${dayStr}`;
+                const storyCount = counts[dateKey] || 0;
+                monthStoryTotal += storyCount;
+
+                const cell = document.createElement('div');
+                cell.className = 'cal-day';
+                if (dateKey === todayKey) cell.classList.add('is-today');
+                if (dateKey === selectedArchiveDate) cell.classList.add('selected');
+
+                if (storyCount > 0) {
+                    cell.classList.add('has-stories');
+                    cell.innerHTML = `<span>${day}</span><span class="story-dot">${storyCount}</span>`;
+                    cell.title = `${storyCount} stor${storyCount === 1 ? 'y' : 'ies'} on ${day} ${MONTH_NAMES[calMonth]} ${calYear}`;
+                    cell.onclick = () => selectArchiveDate(dateKey);
+                } else {
+                    cell.classList.add('no-stories');
+                    cell.innerHTML = `<span>${day}</span>`;
+                }
+                grid.appendChild(cell);
+            }
+
+            document.getElementById('cal-month-title').innerText = `${MONTH_NAMES[calMonth]} ${calYear}`;
+            document.getElementById('cal-month-count').innerText = `${monthStoryTotal} stor${monthStoryTotal === 1 ? 'y' : 'ies'} archived`;
+            
+            const clearBtn = document.getElementById('cal-clear-btn');
+            if (clearBtn) {
+                clearBtn.style.display = selectedArchiveDate ? 'inline-block' : 'none';
+            }
+        }
+
+        function navMonth(dir) {
+            calMonth += dir;
+            if (calMonth < 0) {
+                calMonth = 11;
+                calYear -= 1;
+            } else if (calMonth > 11) {
+                calMonth = 0;
+                calYear += 1;
+            }
+            renderCalendar();
+        }
+
+        function jumpToLatest() {
+            if (allStoriesCache.length > 0 && allStoriesCache[0].created_at) {
+                const key = getStoryDateKey(allStoriesCache[0].created_at);
+                const parts = key.split('-');
+                if (parts.length === 3) {
+                    calYear = parseInt(parts[0], 10);
+                    calMonth = parseInt(parts[1], 10) - 1;
+                    selectArchiveDate(key);
+                    return;
+                }
+            }
+            const now = new Date();
+            calYear = now.getFullYear();
+            calMonth = now.getMonth();
+            renderCalendar();
+        }
+
+        function selectArchiveDate(dateKey) {
+            selectedArchiveDate = dateKey;
+            if (window.location.hash !== `#archive=${dateKey}`) {
+                window.location.hash = `archive=${dateKey}`;
+            }
+
+            const banner = document.getElementById('archive-filter-banner');
+            const dateEl = document.getElementById('filter-banner-date');
+            const countEl = document.getElementById('filter-banner-count');
+            
+            const parts = dateKey.split('-');
+            const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+            const formattedDate = d.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            
+            const count = (getDateStoryCounts()[dateKey]) || 0;
+            dateEl.innerText = formattedDate;
+            countEl.innerText = `${count} stor${count === 1 ? 'y' : 'ies'} archived`;
+            banner.style.display = 'flex';
+
+            renderCalendar();
+            renderFeedView();
+        }
+
+        function clearDateFilter() {
+            selectedArchiveDate = null;
+            if (window.location.hash && window.location.hash.startsWith('#archive=')) {
+                history.replaceState(null, null, window.location.pathname + window.location.search);
+            }
+            document.getElementById('archive-filter-banner').style.display = 'none';
+            renderCalendar();
+            renderFeedView();
+        }
+
+        function getFilteredStories() {
+            if (!selectedArchiveDate) return allStoriesCache;
+            return allStoriesCache.filter(s => getStoryDateKey(s.created_at) === selectedArchiveDate);
+        }
+
+        function renderFeedView() {
+            const feed = document.getElementById('feed');
+            const myNick = getStoredNick();
+            const storiesToRender = getFilteredStories();
+
+            // Save input values
+            const savedInputs = {};
+            document.querySelectorAll('[id^="comment-input-"]').forEach(input => {
+                if (input.value) savedInputs[input.id] = input.value;
+            });
+
+            feed.innerHTML = '';
+            if (storiesToRender.length === 0) {
+                const emptyMsg = document.createElement('div');
+                emptyMsg.className = 'empty-archive-state';
+                emptyMsg.innerHTML = `
+                    <div style="font-size: 2em; margin-bottom: 10px;">📭</div>
+                    <div style="font-weight: 700; margin-bottom: 6px;">No stories archived for this date</div>
+                    <div style="font-size: 0.85em; color: var(--text-dim); margin-bottom: 15px;">Pick a date with an activity dot on the calendar or return to the live feed.</div>
+                    <button class="cal-quick-btn" onclick="clearDateFilter()">Show All Stories</button>
+                `;
+                feed.appendChild(emptyMsg);
+                return;
+            }
+
+            storiesToRender.forEach(s => renderStory(s, myNick));
+
+            // Restore input values
+            Object.keys(savedInputs).forEach(id => {
+                const input = document.getElementById(id);
+                if (input) input.value = savedInputs[id];
+            });
+        }
 
         function toggleExtras() {
             const drawer = document.getElementById('extras-drawer');
@@ -546,30 +1073,18 @@
                 const res = await fetch('/api/stories');
                 const stories = await res.json();
                 allStoriesCache = stories;
-                const feed = document.getElementById('feed');
-                const myNick = getStoredNick();
                 
                 const currentCommentCount = stories.reduce((acc, s) => acc + s.comments.length, 0);
                 const currentReviewHash = stories.map(s => `${s.id}:${s.moderated}:${s.review || ''}`).join('|');
 
                 if (stories.length > 0 && (stories[0].id !== lastStoryId || currentCommentCount !== lastCommentCount || currentReviewHash !== lastReviewHash)) {
-                    // Save input values
-                    const savedInputs = {};
-                    document.querySelectorAll('[id^="comment-input-"]').forEach(input => {
-                        if (input.value) savedInputs[input.id] = input.value;
-                    });
-
                     lastStoryId = stories[0].id;
                     lastCommentCount = currentCommentCount;
                     lastReviewHash = currentReviewHash;
-                    feed.innerHTML = '';
-                    stories.forEach(s => renderStory(s, myNick));
-
-                    // Restore input values
-                    Object.keys(savedInputs).forEach(id => {
-                        const input = document.getElementById(id);
-                        if (input) input.value = savedInputs[id];
-                    });
+                    renderFeedView();
+                    if (document.getElementById('calendar-drawer').classList.contains('open')) {
+                        renderCalendar();
+                    }
                 }
             } catch (e) { console.error(e); }
         }
@@ -717,8 +1232,29 @@
             }
         }
 
+        function checkUrlHash() {
+            const hash = window.location.hash;
+            const match = hash.match(/archive=(\d{4}-\d{2}-\d{2})/);
+            if (match) {
+                const dateKey = match[1];
+                const parts = dateKey.split('-');
+                calYear = parseInt(parts[0], 10);
+                calMonth = parseInt(parts[1], 10) - 1;
+                selectArchiveDate(dateKey);
+                const drawer = document.getElementById('calendar-drawer');
+                if (drawer && !drawer.classList.contains('open')) {
+                    toggleCalendar();
+                }
+            } else if (selectedArchiveDate) {
+                clearDateFilter();
+            }
+        }
+        window.addEventListener('hashchange', checkUrlHash);
+
         updateUserBadge(getStoredNick());
-        fetchStories();
+        fetchStories().then(() => {
+            checkUrlHash();
+        });
         fetchLatestPodcast();
         setInterval(fetchStories, 2000);
         setInterval(fetchLatestPodcast, 10000);
