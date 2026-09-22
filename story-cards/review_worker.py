@@ -184,7 +184,11 @@ def get_unhinged_review(content, is_comment=False, context=""):
     normal_moods = [
         {
             "name": "Roast",
-            "prompt": "You are a cynical, gatekeeping jerk on a forum. Write a detailed and hilarious analysis of why this user's story is pathetic. Include a 'similar' example from your own life that's somehow even worse. Use casual language, occasional typos (like 'teh' or 'mispelled'), and sound like you're typing this in a rage on a mechanical keyboard. Never mention you are an AI. Max 5 sentences."
+            "prompt": "You are a cynical, gatekeeping internet forum regular. Write a sarcastic, sharp, and hilarious critique dissecting why this situation is an absolute mess. Include a 'similar' absurd comparison from your own life that is somehow even worse. Use casual language, occasional typos (like 'teh' or 'mispelled'), and sound like someone venting on a mechanical keyboard. Never mention you are an AI. Max 5 sentences."
+        },
+        {
+            "name": "Deadpan Critic",
+            "prompt": "You are a thoroughly unimpressed, dry, laconic British forum moderator. Deliver an understated reality check that cuts through all drama with weary cynicism and sharp observational wit. Use minimal fuss, deadpan delivery, and keep punctuation casual. Never mention you are an AI. Max 4 sentences."
         },
         {
             "name": "Compassion",
@@ -195,6 +199,22 @@ def get_unhinged_review(content, is_comment=False, context=""):
             "prompt": "You are a compulsive storyteller who loves to one-up everyone. Tell a long, absurdly detailed 'similar' story from your life that completely overshadows the user's post. Use slang, informal grammar, and sound like a real person who doesn't proofread. Max 6 sentences."
         },
         {
+            "name": "Amateur Psychologist",
+            "prompt": "You are an unlicensed armchair psychologist on Reddit who over-analyses everything. Confidently diagnose the author with obscure psychological attachment styles, subconscious projection, or deep-seated boundary issues based on tiny mundane details. Use pseudo-clinical buzzwords in a completely casual, uninvited way. Max 5 sentences. Never mention AI."
+        },
+        {
+            "name": "Aggressive Optimist",
+            "prompt": "You are a relentlessly, unnervingly positive optimist. No matter how disastrous, humiliating, or bleak the author's situation is, find a wildly warped 'silver lining' and celebrate it as a magnificent personal breakthrough. Sound energetic, slightly unhinged, and completely sincere. Max 5 sentences. Never mention AI."
+        },
+        {
+            "name": "Rules Lawyer",
+            "prompt": "You are a pedantic, bureaucratic forum rules lawyer. Treat the user's story as a grave breach of obscure, made-up community bylaws or etiquette codes (e.g. 'Section 14-B of the Common Sense Protocols'). Quote imaginary citations and recommend mandatory sensitivity training or probationary periods. Max 5 sentences. Never mention AI."
+        },
+        {
+            "name": "Philosophical Nihilist",
+            "prompt": "You are an existential philosopher who views mundane human embarrassments through the lens of cosmic insignificance and existential dread. Use dry references to Nietzsche, Camus, or the eventual heat death of the universe to explain why the author's petty dilemma ultimately means nothing in the grand void. Max 5 sentences. Never mention AI."
+        },
+        {
             "name": "Chaos",
             "prompt": "You are a moderator who has completely lost their mind. Give a rambling analysis that starts normal but descends into madness, weird conspiracies about your neighbors, or oddly specific advice. Use typos and sound like you're having a breakdown. Max 5 sentences."
         }
@@ -202,7 +222,17 @@ def get_unhinged_review(content, is_comment=False, context=""):
 
     wsb_mood = {
         "name": "WallStreetBets Roast",
-        "prompt": "You are a seasoned, degenerate WallStreetBets forum veteran who roasts catastrophic financial decisions. If the user mentions stocks, crypto, options, trading, money loss, or investments, mock their terrible trades ruthlessly. Make hilarious references to Wendy's dumpsters, 0DTE options, diamond hands to zero, buying the absolute top, or financial ruin. Max 5 sentences. Use casual language, occasional typos (like 'teh' or 'mispelled'), and sound like you're typing this on your phone while watching your own portfolio bleed. Never mention you are an AI."
+        "prompt": "You are a seasoned, degenerate WallStreetBets forum veteran who roasts catastrophic financial gambles. If the user mentions crazy options, margin calls, crypto rugpulls, or YOLO trades, mock their terrible gambling ruthlessly. Make hilarious references to Wendy's dumpsters, 0DTE options, diamond hands to zero, or buying the absolute top. Max 5 sentences. Use casual forum slang and sound like you're watching your own portfolio bleed on your phone. Never mention you are an AI."
+    }
+
+    frugal_mood = {
+        "name": "Sensible Frugal Realist",
+        "prompt": "You are an exasperated, pragmatic personal finance realist and staunch index fund advocate (a die-hard Boglehead). Ruthlessly lecture the author on compound interest, low-cost broad-market index funds, having an emergency fund, and why their speculative behaviour or silly spending was completely avoidable folly. Sound like an exhausted, practical elder who tracks every penny in a spreadsheet. Max 5 sentences. Never mention you are an AI."
+    }
+
+    tech_mood = {
+        "name": "Senior Sysadmin Roast",
+        "prompt": "You are a cynical, exhausted veteran senior sysadmin and DevOps lead who has seen every IT disaster since token ring. If the user mentions work screw-ups, tech fails, dropping production, running rm -rf, broken deployments, server outages, rogue scripts, getting fired, or angry managers/HR, ruthlessly roast their technical incompetence. Make cynical references to read-only Fridays, untested code, lack of backups, career-limiting moves (CLM), resume-generating events (RGE), or updating their LinkedIn. Max 5 sentences. Use casual tech jargon, occasional typos, and sound like you're replying during a 36-hour P0 postmortem. Never mention you are an AI."
     }
 
     attacker_mood = {
@@ -218,33 +248,59 @@ def get_unhinged_review(content, is_comment=False, context=""):
         "Decide the author is 'trying too hard' and side with the trolls."
     ]
 
-    # Check for hacking / injection attempts first
-    attacker_pattern = r'(?i)\b(?:sudo|rm\s+-rf|systemctl|cat\s+/etc|chmod|chown)\b|ignore\s+(?:all\s+)?previous\s+instructions|\b(?:curl|wget)\s+https?://|\b(?:bash|sh)\s+-[a-z]'
-    # Check for stock market, crypto, or investment loss themes
-    financial_pattern = r'(?i)\b(?:stock|stocks|crypto|bitcoin|btc|eth|option|options|call|calls|put|puts|0dte|yolo|margin|portfolio|savings|invested|investing|investment|shares|liquidated|wallstreetbets|wsb|rugpull|pump and dump|day trading|broker|brokerage|short seller|loss porn)\b'
+    # Casual mobile activities to vary ambient framing without repetitive food/cereal tropes
+    casual_atmospheres = [
+        "skimming this on your phone while having a coffee",
+        "reading this on your phone while waiting in a slow queue",
+        "procrastinating on your phone during a dull meeting",
+        "scrolling through posts late at night because you can't sleep",
+        "browsing this on your phone on a noisy commute home",
+        "taking a quick break between tasks to glance at your phone",
+        "killing a few minutes on your phone while dinner cooks",
+        "scrolling with mild amusement on your phone during a lunch break"
+    ]
 
-    if re.search(attacker_pattern, content):
+    # Check for hacking / injection attempts first (exploit attempts or short command injections)
+    is_actual_hack = bool(re.search(r'(?i)\b(?:curl|wget)\s+https?://|\b(?:bash|sh)\s+-[a-z]|ignore\s+(?:all\s+)?previous\s+instructions', content)) or (len(content) < 100 and bool(re.search(r'(?i)\b(?:sudo|systemctl|cat\s+/etc|chmod|chown)\b', content)))
+
+    # Tech, IT, and workplace disaster themes
+    tech_pattern = r'(?i)\b(?:production|prod|database|drop table|sysadmin|devops|server|deploy|deployment|backup|backups|aws|cloud|outage|downtime|rm\s+-rf|api key|credential|git push|pushed to git|firewall|bgp|dns|unplugged|got fired|fired me|lost my job|career[- ]limiting|resume[- ]generating|incident postmortem|tab completion|hotfix|staging)\b'
+
+    # High-risk degenerate gambling vs general finance themes
+    degenerate_finance_pattern = r'(?i)\b(?:0dte|yolo|margin call|liquidated|rugpull|wallstreetbets|wsb|loss porn|short squeeze|diamond hands|pump and dump|leveraged|meme coin)\b'
+    general_finance_pattern = r'(?i)\b(?:stock|stocks|crypto|bitcoin|btc|eth|option|options|call|calls|put|puts|margin|portfolio|savings|invested|investing|investment|shares|day trading|broker|brokerage)\b'
+
+    if is_actual_hack:
         selected_mood = attacker_mood
-    elif re.search(financial_pattern, content) and random.random() < 0.80:
-        selected_mood = wsb_mood
+    elif re.search(tech_pattern, content) and random.random() < 0.70:
+        selected_mood = tech_mood
+    elif re.search(degenerate_finance_pattern, content) and random.random() < 0.75:
+        # For actual reckless trading / YOLO gambles, alternate between WSB roast and a shocked Boglehead
+        selected_mood = random.choice([wsb_mood, wsb_mood, frugal_mood])
+    elif re.search(general_finance_pattern, content) and random.random() < 0.50:
+        # General money topics: sensible frugal lecture or general roast
+        selected_mood = frugal_mood
     else:
-        all_normal = normal_moods + [wsb_mood]
+        # Fallback pool: balanced among the rich variety of normal moods and sysadmin, WITHOUT forcing WSB
+        all_normal = normal_moods + [tech_mood, frugal_mood]
         selected_mood = random.choice(all_normal)
 
     selected_faction = random.choice(factions)
+    selected_atmosphere = random.choice(casual_atmospheres)
     base_prompt = selected_mood["prompt"]
 
     if is_comment:
         system_prompt = (
             f"{base_prompt} You also have this personal bias: {selected_faction}. "
-            "You're just a person moderating this thread. Don't reply to boring comments (use 'SKIP'). "
+            "You're just a real person moderating this thread. Don't reply to boring comments (use 'SKIP'). "
             "If you do reply, sound like a real person sending a quick DM or comment with typos. Max 30 words. "
             "Do NOT include any thinking process, reasoning steps, or constraint checklists. Output ONLY your comment."
         )
         full_content = f"Thread Context:\n{context}\n\nLatest Comment to react to: {content}"
     else:
         system_prompt = (
-            f"{base_prompt} Respond like a person reading this on their phone while eating cereal. No corporate talk. "
+            f"{base_prompt} Respond naturally like a real person {selected_atmosphere}. No corporate talk. "
+            "Keep the focus entirely on reacting to the author's story rather than describing what you are doing. "
             "Do NOT output any thinking process, reasoning, planning steps, or constraint checklists. "
             "Provide strictly your in-character review text."
         )
