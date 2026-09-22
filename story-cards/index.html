@@ -835,6 +835,91 @@
             font-weight: 700;
             box-shadow: 0 0 10px rgba(34, 211, 238, 0.3);
         }
+
+        /* Reel Lazy Loading & Footer Styles */
+        .reel-footer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 0 35px 0;
+            width: 100%;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .reel-sentinel {
+            width: 100%;
+            height: 4px;
+            pointer-events: none;
+            opacity: 0;
+        }
+
+        .reel-loader {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            color: var(--text-dim);
+            font-size: 0.85em;
+            font-weight: 500;
+            padding: 10px 20px;
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            backdrop-filter: blur(8px);
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        .reel-spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(34, 211, 238, 0.2);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: reelSpin 0.75s linear infinite;
+        }
+
+        @keyframes reelSpin {
+            to { transform: rotate(360deg); }
+        }
+
+        .reel-load-more-btn {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(34, 211, 238, 0.35);
+            color: var(--accent);
+            padding: 9px 24px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .reel-load-more-btn:hover {
+            background: var(--accent);
+            color: #0f172a;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(34, 211, 238, 0.25);
+        }
+
+        .reel-end {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.8em;
+            color: var(--text-dim);
+            padding: 12px 20px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px dashed rgba(255, 255, 255, 0.08);
+        }
+
+        .reel-end-count {
+            font-size: 0.85em;
+            opacity: 0.75;
+        }
 </style>
 </head>
 <body>
@@ -923,15 +1008,34 @@
             <button class="banner-clear-btn" onclick="clearDateFilter()">✕ Show All Stories</button>
         </div>
 
-        <div class="feed-container" id="feed"></div>
+        <div class="feed-container" id="feed">
+            <div id="reel-footer" class="reel-footer">
+                <div id="reel-loader" class="reel-loader" style="display: none;">
+                    <div class="reel-spinner"></div>
+                    <span>Loading more stories...</span>
+                </div>
+                <div id="reel-sentinel" class="reel-sentinel"></div>
+                <button id="reel-load-more-btn" class="reel-load-more-btn" onclick="loadStoriesBatch()" style="display: none;">
+                    Load More Stories
+                </button>
+                <div id="reel-end" class="reel-end" style="display: none;">
+                    <span>✨ You're all caught up!</span>
+                    <span id="reel-end-count" class="reel-end-count"></span>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
-        let lastStoryId = 0;
-        let lastCommentCount = 0;
-        let lastReviewHash = "";
-        let currentPodcastFile = "";
+        const PAGE_SIZE = 8;
+        let currentOffset = 0;
+        let hasMoreStories = true;
+        let isLoadingMore = false;
+        let totalAvailableStories = 0;
+        let loadedStoryIds = new Set();
         let allStoriesCache = [];
+        let calendarCountsCache = {};
+        let currentPodcastFile = "";
 
         // Calendar Archive State
         let calYear = new Date().getFullYear();
@@ -969,19 +1073,45 @@
             document.querySelectorAll('.feed-tab').forEach(el => el.classList.remove('active'));
             const activeEl = document.getElementById(`tab-${tab}`);
             if (activeEl) activeEl.classList.add('active');
-            renderFeedView();
+            loadStoriesBatch({ reset: true });
         }
 
         function toggleBookmark(storyId) {
             const saved = getSavedStoryIds();
             const idx = saved.indexOf(storyId);
-            if (idx > -1) {
-                saved.splice(idx, 1);
-            } else {
+            const isNowSaved = idx === -1;
+            if (isNowSaved) {
                 saved.push(storyId);
+            } else {
+                saved.splice(idx, 1);
             }
             setSavedStoryIds(saved);
-            renderFeedView();
+
+            const card = document.getElementById(`story-card-${storyId}`);
+            if (card) {
+                const btn = card.querySelector('.bookmark-btn');
+                if (btn) {
+                    btn.classList.toggle('bookmarked', isNowSaved);
+                    btn.title = isNowSaved ? 'Remove bookmark' : 'Bookmark story';
+                    const icon = btn.querySelector('.bookmark-icon');
+                    const text = btn.querySelector('.bookmark-text');
+                    if (icon) icon.innerText = isNowSaved ? '🔖' : '📑';
+                    if (text) text.innerText = isNowSaved ? 'Saved' : 'Save';
+                }
+                // In saved tab, smoothly remove card when unbookmarked
+                if (currentFeedTab === 'saved' && !isNowSaved) {
+                    card.style.transition = 'all 0.3s ease';
+                    card.style.opacity = '0';
+                    card.style.transform = 'translateY(-10px)';
+                    setTimeout(() => {
+                        card.remove();
+                        loadedStoryIds.delete(storyId);
+                        if (loadedStoryIds.size === 0) {
+                            renderEmptyReelState();
+                        }
+                    }, 300);
+                }
+            }
         }
 
         async function toggleUpvote(storyId) {
@@ -1003,7 +1133,10 @@
 
             const btn = document.getElementById(`upvote-btn-${storyId}`);
             const countEl = document.getElementById(`upvote-count-${storyId}`);
-            if (btn) btn.classList.toggle('voted', !isVoted);
+            if (btn) {
+                btn.classList.toggle('voted', !isVoted);
+                btn.title = !isVoted ? 'Remove upvote' : 'Upvote story';
+            }
             if (countEl && story) countEl.innerText = story.upvotes;
 
             try {
@@ -1031,14 +1164,19 @@
         }
 
         function getDateStoryCounts() {
-            const counts = {};
-            for (const story of allStoriesCache) {
-                const key = getStoryDateKey(story.created_at);
-                if (key) {
-                    counts[key] = (counts[key] || 0) + 1;
+            return calendarCountsCache;
+        }
+
+        async function fetchCalendarDates() {
+            try {
+                const res = await fetch('/api/calendar-dates');
+                if (res.ok) {
+                    calendarCountsCache = await res.json();
+                    renderCalendar();
                 }
+            } catch (e) {
+                console.error('Failed to fetch calendar dates:', e);
             }
-            return counts;
         }
 
         function toggleCalendar() {
@@ -1051,13 +1189,8 @@
                     const parts = selectedArchiveDate.split('-');
                     calYear = parseInt(parts[0], 10);
                     calMonth = parseInt(parts[1], 10) - 1;
-                } else if (allStoriesCache.length > 0 && allStoriesCache[0].created_at) {
-                    const key = getStoryDateKey(allStoriesCache[0].created_at);
-                    const parts = key.split('-');
-                    calYear = parseInt(parts[0], 10);
-                    calMonth = parseInt(parts[1], 10) - 1;
                 }
-                renderCalendar();
+                fetchCalendarDates();
             } else {
                 chevron.innerText = '▼';
             }
@@ -1079,14 +1212,12 @@
             let monthStoryTotal = 0;
             grid.innerHTML = '';
 
-            // Empty cells before 1st of month
             for (let i = 0; i < startingDay; i++) {
                 const emptyCell = document.createElement('div');
                 emptyCell.className = 'cal-day empty';
                 grid.appendChild(emptyCell);
             }
 
-            // Days of the month
             for (let day = 1; day <= daysInMonth; day++) {
                 const monthStr = String(calMonth + 1).padStart(2, '0');
                 const dayStr = String(day).padStart(2, '0');
@@ -1133,15 +1264,14 @@
         }
 
         function jumpToLatest() {
-            if (allStoriesCache.length > 0 && allStoriesCache[0].created_at) {
-                const key = getStoryDateKey(allStoriesCache[0].created_at);
-                const parts = key.split('-');
-                if (parts.length === 3) {
-                    calYear = parseInt(parts[0], 10);
-                    calMonth = parseInt(parts[1], 10) - 1;
-                    selectArchiveDate(key);
-                    return;
-                }
+            const dates = Object.keys(calendarCountsCache).sort().reverse();
+            if (dates.length > 0) {
+                const latestDate = dates[0];
+                const parts = latestDate.split('-');
+                calYear = parseInt(parts[0], 10);
+                calMonth = parseInt(parts[1], 10) - 1;
+                selectArchiveDate(latestDate);
+                return;
             }
             const now = new Date();
             calYear = now.getFullYear();
@@ -1163,13 +1293,13 @@
             const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
             const formattedDate = d.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
             
-            const count = (getDateStoryCounts()[dateKey]) || 0;
+            const count = (calendarCountsCache[dateKey]) || 0;
             dateEl.innerText = formattedDate;
             countEl.innerText = `${count} stor${count === 1 ? 'y' : 'ies'} archived`;
             banner.style.display = 'flex';
 
             renderCalendar();
-            renderFeedView();
+            loadStoriesBatch({ reset: true });
         }
 
         function clearDateFilter() {
@@ -1179,81 +1309,386 @@
             }
             document.getElementById('archive-filter-banner').style.display = 'none';
             renderCalendar();
-            renderFeedView();
+            loadStoriesBatch({ reset: true });
         }
 
-        function getFilteredStories() {
-            let list = allStoriesCache.slice();
-
-            // 1. Filter by date if active
-            if (selectedArchiveDate) {
-                list = list.filter(s => getStoryDateKey(s.created_at) === selectedArchiveDate);
-            }
-
-            // 2. Filter by saved tab
-            if (currentFeedTab === 'saved') {
-                const savedIds = getSavedStoryIds();
-                list = list.filter(s => savedIds.includes(s.id));
-            }
-
-            // 3. Sort
-            if (currentFeedTab === 'top') {
-                list.sort((a, b) => ((b.upvotes || 0) - (a.upvotes || 0)) || (b.id - a.id));
-            } else {
-                // Latest
-                list.sort((a, b) => b.id - a.id);
-            }
-
-            return list;
-        }
-
-        function renderFeedView() {
+        function renderEmptyReelState() {
             const feed = document.getElementById('feed');
-            const myNick = getStoredNick();
-            const storiesToRender = getFilteredStories();
-            updateSavedCount();
+            const footer = document.getElementById('reel-footer');
+            feed.querySelectorAll('.empty-archive-state').forEach(el => el.remove());
 
-            // Save input values
-            const savedInputs = {};
-            document.querySelectorAll('[id^="comment-input-"]').forEach(input => {
-                if (input.value) savedInputs[input.id] = input.value;
-            });
+            const emptyMsg = document.createElement('div');
+            emptyMsg.className = 'empty-archive-state';
+            if (currentFeedTab === 'saved') {
+                emptyMsg.innerHTML = `
+                    <div style="font-size: 2em; margin-bottom: 10px;">🔖</div>
+                    <div style="font-weight: 700; margin-bottom: 6px;">No saved stories yet</div>
+                    <div style="font-size: 0.85em; color: var(--text-dim); margin-bottom: 15px;">Click the 🔖 button on any story card to bookmark your favourites and revisit them here.</div>
+                    <button class="cal-quick-btn" onclick="setFeedTab('latest')">Browse Live Feed</button>
+                `;
+            } else if (selectedArchiveDate) {
+                emptyMsg.innerHTML = `
+                    <div style="font-size: 2em; margin-bottom: 10px;">📭</div>
+                    <div style="font-weight: 700; margin-bottom: 6px;">No stories archived for this date</div>
+                    <div style="font-size: 0.85em; color: var(--text-dim); margin-bottom: 15px;">Pick a date with an activity dot on the calendar or return to the live feed.</div>
+                    <button class="cal-quick-btn" onclick="clearDateFilter()">Show All Stories</button>
+                `;
+            } else {
+                emptyMsg.innerHTML = `
+                    <div style="font-size: 2em; margin-bottom: 10px;">📭</div>
+                    <div style="font-weight: 700; margin-bottom: 6px;">No stories to display</div>
+                `;
+            }
+            if (footer) feed.insertBefore(emptyMsg, footer);
+            else feed.appendChild(emptyMsg);
+        }
 
-            feed.innerHTML = '';
-            if (storiesToRender.length === 0) {
-                const emptyMsg = document.createElement('div');
-                emptyMsg.className = 'empty-archive-state';
-                if (currentFeedTab === 'saved') {
-                    emptyMsg.innerHTML = `
-                        <div style="font-size: 2em; margin-bottom: 10px;">🔖</div>
-                        <div style="font-weight: 700; margin-bottom: 6px;">No saved stories yet</div>
-                        <div style="font-size: 0.85em; color: var(--text-dim); margin-bottom: 15px;">Click the 🔖 button on any story card to bookmark your favourites and revisit them here.</div>
-                        <button class="cal-quick-btn" onclick="setFeedTab('latest')">Browse Live Feed</button>
-                    `;
-                } else if (selectedArchiveDate) {
-                    emptyMsg.innerHTML = `
-                        <div style="font-size: 2em; margin-bottom: 10px;">📭</div>
-                        <div style="font-weight: 700; margin-bottom: 6px;">No stories archived for this date</div>
-                        <div style="font-size: 0.85em; color: var(--text-dim); margin-bottom: 15px;">Pick a date with an activity dot on the calendar or return to the live feed.</div>
-                        <button class="cal-quick-btn" onclick="clearDateFilter()">Show All Stories</button>
+        function renderStory(story, myNick, prepend = false) {
+            const feed = document.getElementById('feed');
+            const footer = document.getElementById('reel-footer');
+            const card = document.createElement('div');
+            card.id = `story-card-${story.id}`;
+            card.className = `story-card`;
+            
+            const isToxic = story.moderated === -1;
+            const isPending = story.moderated === 0;
+            const isMine = story.nickname === myNick;
+            
+            const d = new Date(story.created_at);
+            const dateStr = d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+            const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const timestamp = `${dateStr}, ${timeStr}`;
+
+            const savedIds = getSavedStoryIds();
+            const votedIds = getVotedStoryIds();
+            const isBookmarked = savedIds.includes(story.id);
+            const isVoted = votedIds.includes(story.id);
+            const upvotesCount = story.upvotes || 0;
+
+            const needsTruncation = story.content && story.content.length > 300;
+            let contentHtml = `
+                <div class="story-body-container ${isPending && !isMine ? 'is-pending' : ''}" 
+                     ${isPending && !isMine ? `onclick="this.classList.toggle('revealed')"` : ''}>
+                    ${isPending && !isMine ? '<div class="pending-overlay">Click to Reveal (Pending Mod)</div>' : ''}
+                    <div class="story-body ${needsTruncation ? 'collapsed' : ''}" id="story-text-${story.id}">${story.content}</div>
+                </div>`;
+            
+            if (needsTruncation) {
+                contentHtml += `<a class="show-more-link" id="expand-btn-${story.id}" onclick="toggleExpand(${story.id})">show all</a>`;
+            }
+
+            if (isToxic) {
+                if (isMine) {
+                    contentHtml = `
+                        <div class="content-deleted">🚨 Content flagged as TOXIC by moderator. Only you can see this.</div>
+                        <div class="story-body" style="opacity: 0.5">${story.content}</div>
+                        <button class="rehabilitate-btn" onclick="rehabilitate(${story.id}, 'story')">Edit & Resubmit</button>
                     `;
                 } else {
-                    emptyMsg.innerHTML = `
-                        <div style="font-size: 2em; margin-bottom: 10px;">📭</div>
-                        <div style="font-weight: 700; margin-bottom: 6px;">No stories to display</div>
-                    `;
+                    contentHtml = `<div class="content-deleted">[DELETED BY MODERATOR FOR RULES VIOLATION]</div>`;
                 }
-                feed.appendChild(emptyMsg);
+            }
+
+            const comments = story.comments || [];
+            card.innerHTML = `
+                <div class="story-meta">
+                    <span class="nickname">@${story.nickname} 
+                        ${story.moderated === 0 ? '<span class="badge badge-pending">Pending Moderation</span>' : ''}
+                        ${isToxic ? '<span class="badge badge-deleted">Deleted</span>' : ''}
+                    </span>
+                    <div class="story-actions">
+                        <button class="upvote-btn ${isVoted ? 'voted' : ''}" id="upvote-btn-${story.id}" onclick="toggleUpvote(${story.id})" title="${isVoted ? 'Remove upvote' : 'Upvote story'}">
+                            <span class="upvote-arrow">▲</span>
+                            <span class="upvote-count" id="upvote-count-${story.id}">${upvotesCount}</span>
+                        </button>
+                        <button class="bookmark-btn ${isBookmarked ? 'bookmarked' : ''}" onclick="toggleBookmark(${story.id})" title="${isBookmarked ? 'Remove bookmark' : 'Bookmark story'}">
+                            <span class="bookmark-icon">${isBookmarked ? '🔖' : '📑'}</span>
+                            <span class="bookmark-text">${isBookmarked ? 'Saved' : 'Save'}</span>
+                        </button>
+                        <span class="timestamp">${timestamp}</span>
+                    </div>
+                </div>
+                ${contentHtml}
+                ${story.moderated === 1 && story.review && story.review !== 'SKIPPED' ? `
+                    <div class="roast-bubble">
+                        <div class="roast-label">Moderator Review</div>
+                        <div class="roast-text">"${story.review}"</div>
+                    </div>
+                ` : ''}
+                <div class="comments-section">
+                    <div class="comment-list" id="comments-${story.id}">
+                        ${comments.map(c => {
+                            const cPending = c.moderated === 0;
+                            const cMine = c.nickname === myNick;
+                            const shouldBlur = cPending && !cMine;
+                            return `
+                                <li class="comment-item ${shouldBlur ? 'is-pending' : ''}" 
+                                    ${shouldBlur ? `onclick="this.classList.toggle('revealed')"` : ''}>
+                                    <div class="comment-user-row">
+                                        <span class="comment-user">${c.nickname}${c.moderated === 0 ? ' (pending)' : ''}:</span>
+                                        ${shouldBlur ? '<span class="pending-overlay" style="position:static; transform:none; display:inline-block; padding:2px 6px; font-size:0.6em; margin-bottom:4px; cursor:pointer">Tap to reveal</span>' : ''}
+                                        <span class="comment-text">${c.comment}</span>
+                                    </div>
+                                    ${c.review && c.review !== 'SKIPPED' ? `<div class="comment-ai-reply"><span class="mod-tag">MOD</span> ${c.review}</div>` : ''}
+                                </li>
+                            `;
+                        }).join('')}
+                    </div>
+                    <div class="comment-box">
+                        <input type="text" placeholder="Add a comment... (Max 200 chars)" maxlength="200" id="comment-input-${story.id}" onkeypress="if(event.key === 'Enter') postComment(${story.id})">
+                        <button onclick="postComment(${story.id})">Reply</button>
+                    </div>
+                </div>
+            `;
+
+            if (prepend) {
+                const firstCard = feed.querySelector('.story-card');
+                if (firstCard) feed.insertBefore(card, firstCard);
+                else if (footer) feed.insertBefore(card, footer);
+                else feed.appendChild(card);
+            } else {
+                if (footer) feed.insertBefore(card, footer);
+                else feed.appendChild(card);
+            }
+        }
+
+        function updateStoryCardInPlace(story) {
+            const card = document.getElementById(`story-card-${story.id}`);
+            if (!card) return;
+
+            // Update upvotes count
+            const countEl = document.getElementById(`upvote-count-${story.id}`);
+            if (countEl && story.upvotes !== undefined && countEl.innerText !== String(story.upvotes)) {
+                countEl.innerText = story.upvotes;
+            }
+
+            // Update roast review bubble
+            let roastBubble = card.querySelector('.roast-bubble');
+            if (story.moderated === 1 && story.review && story.review !== 'SKIPPED') {
+                if (!roastBubble) {
+                    roastBubble = document.createElement('div');
+                    roastBubble.className = 'roast-bubble';
+                    roastBubble.innerHTML = `
+                        <div class="roast-label">Moderator Review</div>
+                        <div class="roast-text">"${story.review}"</div>
+                    `;
+                    const commentsSection = card.querySelector('.comments-section');
+                    if (commentsSection) card.insertBefore(roastBubble, commentsSection);
+                    else card.appendChild(roastBubble);
+                } else {
+                    const textEl = roastBubble.querySelector('.roast-text');
+                    if (textEl && textEl.innerText !== `"${story.review}"`) {
+                        textEl.innerText = `"${story.review}"`;
+                    }
+                }
+            }
+
+            // Update pending badge
+            const pendingBadge = card.querySelector('.badge-pending');
+            if (pendingBadge && story.moderated !== 0) {
+                pendingBadge.remove();
+                const pendingOverlay = card.querySelector('.pending-overlay');
+                if (pendingOverlay) pendingOverlay.remove();
+                const bodyContainer = card.querySelector('.story-body-container');
+                if (bodyContainer) bodyContainer.classList.remove('is-pending');
+            }
+
+            // Update comments list
+            const commentsContainer = document.getElementById(`comments-${story.id}`);
+            if (commentsContainer && story.comments) {
+                const currentCount = commentsContainer.querySelectorAll('.comment-item').length;
+                if (currentCount !== story.comments.length) {
+                    const myNick = getStoredNick();
+                    commentsContainer.innerHTML = story.comments.map(c => {
+                        const cPending = c.moderated === 0;
+                        const cMine = c.nickname === myNick;
+                        const shouldBlur = cPending && !cMine;
+                        return `
+                            <li class="comment-item ${shouldBlur ? 'is-pending' : ''}" 
+                                ${shouldBlur ? `onclick="this.classList.toggle('revealed')"` : ''}>
+                                <div class="comment-user-row">
+                                    <span class="comment-user">${c.nickname}${c.moderated === 0 ? ' (pending)' : ''}:</span>
+                                    ${shouldBlur ? '<span class="pending-overlay" style="position:static; transform:none; display:inline-block; padding:2px 6px; font-size:0.6em; margin-bottom:4px; cursor:pointer">Tap to reveal</span>' : ''}
+                                    <span class="comment-text">${c.comment}</span>
+                                </div>
+                                ${c.review && c.review !== 'SKIPPED' ? `<div class="comment-ai-reply"><span class="mod-tag">MOD</span> ${c.review}</div>` : ''}
+                            </li>
+                        `;
+                    }).join('');
+                }
+            }
+        }
+
+        async function loadStoriesBatch({ reset = false } = {}) {
+            if (isLoadingMore) return;
+            if (!reset && !hasMoreStories) return;
+
+            const feed = document.getElementById('feed');
+            const footer = document.getElementById('reel-footer');
+            const loader = document.getElementById('reel-loader');
+            const loadMoreBtn = document.getElementById('reel-load-more-btn');
+            const endMsg = document.getElementById('reel-end');
+
+            if (reset) {
+                currentOffset = 0;
+                hasMoreStories = true;
+                totalAvailableStories = 0;
+                loadedStoryIds.clear();
+                feed.querySelectorAll('.story-card, .empty-archive-state').forEach(el => el.remove());
+                feed.scrollTop = 0;
+            }
+
+            isLoadingMore = true;
+            if (loader) loader.style.display = 'flex';
+            if (loadMoreBtn) loadMoreBtn.style.display = 'none';
+            if (endMsg) endMsg.style.display = 'none';
+
+            if (currentFeedTab === 'saved') {
+                const savedIds = getSavedStoryIds();
+                if (savedIds.length === 0) {
+                    renderEmptyReelState();
+                    if (loader) loader.style.display = 'none';
+                    hasMoreStories = false;
+                    isLoadingMore = false;
+                    return;
+                }
+            }
+
+            try {
+                const params = new URLSearchParams();
+                params.set('limit', PAGE_SIZE);
+                params.set('offset', currentOffset);
+                params.set('sort', currentFeedTab === 'top' ? 'top' : 'latest');
+                if (selectedArchiveDate) {
+                    params.set('date', selectedArchiveDate);
+                }
+                if (currentFeedTab === 'saved') {
+                    params.set('ids', getSavedStoryIds().join(','));
+                }
+
+                const res = await fetch('/api/stories?' + params.toString());
+                if (!res.ok) throw new Error('API returned ' + res.status);
+
+                const totalHeader = res.headers.get('X-Total-Count');
+                if (totalHeader) {
+                    totalAvailableStories = parseInt(totalHeader, 10);
+                }
+
+                const newStories = await res.json();
+                const myNick = getStoredNick();
+
+                newStories.forEach(s => {
+                    const idx = allStoriesCache.findIndex(c => c.id === s.id);
+                    if (idx > -1) allStoriesCache[idx] = s;
+                    else allStoriesCache.push(s);
+
+                    if (!loadedStoryIds.has(s.id)) {
+                        loadedStoryIds.add(s.id);
+                        renderStory(s, myNick, false);
+                    }
+                });
+
+                currentOffset += newStories.length;
+
+                if (newStories.length < PAGE_SIZE || (totalAvailableStories > 0 && currentOffset >= totalAvailableStories)) {
+                    hasMoreStories = false;
+                }
+
+                if (loader) loader.style.display = 'none';
+
+                if (loadedStoryIds.size === 0) {
+                    renderEmptyReelState();
+                    hasMoreStories = false;
+                } else if (hasMoreStories) {
+                    if (loadMoreBtn) loadMoreBtn.style.display = 'inline-block';
+                } else {
+                    if (endMsg) {
+                        endMsg.style.display = 'flex';
+                        const countSpan = document.getElementById('reel-end-count');
+                        if (countSpan) countSpan.innerText = `Showing all ${loadedStoryIds.size} stories`;
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to load story batch:', err);
+                if (loader) loader.style.display = 'none';
+                if (loadMoreBtn) loadMoreBtn.style.display = 'inline-block';
+            } finally {
+                isLoadingMore = false;
+            }
+        }
+
+        function setupReelObserver() {
+            const feedContainer = document.getElementById('feed');
+            const sentinel = document.getElementById('reel-sentinel');
+            
+            if ('IntersectionObserver' in window && sentinel) {
+                const observer = new IntersectionObserver((entries) => {
+                    const entry = entries[0];
+                    if (entry.isIntersecting && hasMoreStories && !isLoadingMore) {
+                        loadStoriesBatch();
+                    }
+                }, {
+                    root: feedContainer,
+                    rootMargin: '250px'
+                });
+                observer.observe(sentinel);
+            }
+            
+            // Container scroll listener fallback
+            feedContainer.addEventListener('scroll', () => {
+                if (hasMoreStories && !isLoadingMore) {
+                    const distanceToBottom = feedContainer.scrollHeight - feedContainer.scrollTop - feedContainer.clientHeight;
+                    if (distanceToBottom < 300) {
+                        loadStoriesBatch();
+                    }
+                }
+            });
+        }
+
+        async function pollVisibleStories() {
+            if (isLoadingMore) return;
+            if (currentFeedTab === 'saved') {
+                updateSavedCount();
                 return;
             }
 
-            storiesToRender.forEach(s => renderStory(s, myNick));
+            try {
+                const countToFetch = Math.max(PAGE_SIZE, loadedStoryIds.size);
+                const params = new URLSearchParams();
+                params.set('limit', countToFetch);
+                params.set('offset', 0);
+                params.set('sort', currentFeedTab === 'top' ? 'top' : 'latest');
+                if (selectedArchiveDate) params.set('date', selectedArchiveDate);
 
-            // Restore input values
-            Object.keys(savedInputs).forEach(id => {
-                const input = document.getElementById(id);
-                if (input) input.value = savedInputs[id];
-            });
+                const res = await fetch('/api/stories?' + params.toString());
+                if (!res.ok) return;
+
+                const stories = await res.json();
+                const myNick = getStoredNick();
+
+                // If on latest feed without date filter, check if a new story was posted at the top
+                if (currentFeedTab === 'latest' && !selectedArchiveDate && stories.length > 0) {
+                    const topStory = stories[0];
+                    if (!loadedStoryIds.has(topStory.id)) {
+                        loadedStoryIds.add(topStory.id);
+                        renderStory(topStory, myNick, true);
+                        currentOffset++;
+                    }
+                }
+
+                // Update master cache and update cards in place
+                stories.forEach(s => {
+                    const idx = allStoriesCache.findIndex(c => c.id === s.id);
+                    if (idx > -1) allStoriesCache[idx] = s;
+                    else allStoriesCache.push(s);
+
+                    if (loadedStoryIds.has(s.id)) {
+                        updateStoryCardInPlace(s);
+                    }
+                });
+            } catch (e) {
+                // Ignore transient polling errors
+            }
         }
 
         function toggleExtras() {
@@ -1277,7 +1712,7 @@
                     return;
                 }
                 const data = await res.json();
-                btn.style.display = 'flex'; // Show the toggle button if podcast exists
+                btn.style.display = 'flex';
                 
                 if (data.filename !== currentPodcastFile) {
                     currentPodcastFile = data.filename;
@@ -1331,123 +1766,6 @@
             }
         }
 
-        async function fetchStories() {
-            try {
-                const res = await fetch('/api/stories');
-                const stories = await res.json();
-                allStoriesCache = stories;
-                
-                const currentCommentCount = stories.reduce((acc, s) => acc + s.comments.length, 0);
-                const currentReviewHash = stories.map(s => `${s.id}:${s.moderated}:${s.review || ''}`).join('|');
-
-                if (stories.length > 0 && (stories[0].id !== lastStoryId || currentCommentCount !== lastCommentCount || currentReviewHash !== lastReviewHash)) {
-                    lastStoryId = stories[0].id;
-                    lastCommentCount = currentCommentCount;
-                    lastReviewHash = currentReviewHash;
-                    renderFeedView();
-                    if (document.getElementById('calendar-drawer').classList.contains('open')) {
-                        renderCalendar();
-                    }
-                }
-            } catch (e) { console.error(e); }
-        }
-
-        function renderStory(story, myNick) {
-            const feed = document.getElementById('feed');
-            const card = document.createElement('div');
-            const isToxic = story.moderated === -1;
-            const isPending = story.moderated === 0;
-            const isMine = story.nickname === myNick;
-            card.className = `story-card`;
-            
-            const d = new Date(story.created_at);
-            const dateStr = d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-            const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const timestamp = `${dateStr}, ${timeStr}`;
-
-            const savedIds = getSavedStoryIds();
-            const votedIds = getVotedStoryIds();
-            const isBookmarked = savedIds.includes(story.id);
-            const isVoted = votedIds.includes(story.id);
-            const upvotesCount = story.upvotes || 0;
-
-            const needsTruncation = story.content.length > 300;
-            let contentHtml = `
-                <div class="story-body-container ${isPending && !isMine ? 'is-pending' : ''}" 
-                     ${isPending && !isMine ? `onclick="this.classList.toggle('revealed')"` : ''}>
-                    ${isPending && !isMine ? '<div class="pending-overlay">Click to Reveal (Pending Mod)</div>' : ''}
-                    <div class="story-body ${needsTruncation ? 'collapsed' : ''}" id="story-text-${story.id}">${story.content}</div>
-                </div>`;
-            
-            if (needsTruncation) {
-                contentHtml += `<a class="show-more-link" id="expand-btn-${story.id}" onclick="toggleExpand(${story.id})">show all</a>`;
-            }
-
-            if (isToxic) {
-                if (isMine) {
-                    contentHtml = `
-                        <div class="content-deleted">🚨 Content flagged as TOXIC by moderator. Only you can see this.</div>
-                        <div class="story-body" style="opacity: 0.5">${story.content}</div>
-                        <button class="rehabilitate-btn" onclick="rehabilitate(${story.id}, 'story')">Edit & Resubmit</button>
-                    `;
-                } else {
-                    contentHtml = `<div class="content-deleted">[DELETED BY MODERATOR FOR RULES VIOLATION]</div>`;
-                }
-            }
-
-            card.innerHTML = `
-                <div class="story-meta">
-                    <span class="nickname">@${story.nickname} 
-                        ${story.moderated === 0 ? '<span class="badge badge-pending">Pending Moderation</span>' : ''}
-                        ${isToxic ? '<span class="badge badge-deleted">Deleted</span>' : ''}
-                    </span>
-                    <div class="story-actions">
-                        <button class="upvote-btn ${isVoted ? 'voted' : ''}" id="upvote-btn-${story.id}" onclick="toggleUpvote(${story.id})" title="${isVoted ? 'Remove upvote' : 'Upvote story'}">
-                            <span class="upvote-arrow">▲</span>
-                            <span class="upvote-count" id="upvote-count-${story.id}">${upvotesCount}</span>
-                        </button>
-                        <button class="bookmark-btn ${isBookmarked ? 'bookmarked' : ''}" onclick="toggleBookmark(${story.id})" title="${isBookmarked ? 'Remove bookmark' : 'Bookmark story'}">
-                            <span class="bookmark-icon">${isBookmarked ? '🔖' : '📑'}</span>
-                            <span class="bookmark-text">${isBookmarked ? 'Saved' : 'Save'}</span>
-                        </button>
-                        <span class="timestamp">${timestamp}</span>
-                    </div>
-                </div>
-                ${contentHtml}
-                ${story.moderated === 1 && story.review && story.review !== 'SKIPPED' ? `
-                    <div class="roast-bubble">
-                        <div class="roast-label">Moderator Review</div>
-                        <div class="roast-text">"${story.review}"</div>
-                    </div>
-                ` : ''}
-                <div class="comments-section">
-                    <div class="comment-list" id="comments-${story.id}">
-                        ${story.comments.map(c => {
-                            const cPending = c.moderated === 0;
-                            const cMine = c.nickname === myNick;
-                            const shouldBlur = cPending && !cMine;
-                            return `
-                                <li class="comment-item ${shouldBlur ? 'is-pending' : ''}" 
-                                    ${shouldBlur ? `onclick="this.classList.toggle('revealed')"` : ''}>
-                                    <div class="comment-user-row">
-                                        <span class="comment-user">${c.nickname}${c.moderated === 0 ? ' (pending)' : ''}:</span>
-                                        ${shouldBlur ? '<span class="pending-overlay" style="position:static; transform:none; display:inline-block; padding:2px 6px; font-size:0.6em; margin-bottom:4px; cursor:pointer">Tap to reveal</span>' : ''}
-                                        <span class="comment-text">${c.comment}</span>
-                                    </div>
-                                    ${c.review && c.review !== 'SKIPPED' ? `<div class="comment-ai-reply"><span class="mod-tag">MOD</span> ${c.review}</div>` : ''}
-                                </li>
-                            `;
-                        }).join('')}
-                    </div>
-                    <div class="comment-box">
-                        <input type="text" placeholder="Add a comment... (Max 200 chars)" maxlength="200" id="comment-input-${story.id}" onkeypress="if(event.key === 'Enter') postComment(${story.id})">
-                        <button onclick="postComment(${story.id})">Reply</button>
-                    </div>
-                </div>
-            `;
-            feed.appendChild(card);
-        }
-
         function toggleExpand(id) {
             const text = document.getElementById(`story-text-${id}`);
             const btn = document.getElementById(`expand-btn-${id}`);
@@ -1463,14 +1781,13 @@
         async function rehabilitate(id, type) {
             const nick = ensureNickname(); if (!nick) return;
 
-            // Find current content from cache
             let currentContent = "";
             if (type === 'story') {
                 const story = allStoriesCache.find(s => s.id === id);
                 if (story) currentContent = story.content;
             } else {
                 for (const s of allStoriesCache) {
-                    const comment = s.comments.find(c => c.id === id);
+                    const comment = s.comments && s.comments.find(c => c.id === id);
                     if (comment) { currentContent = comment.comment; break; }
                 }
             }
@@ -1483,9 +1800,12 @@
             }
             const res = await fetch('/api/rehabilitate', {
                 method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id, type, content: newContent, nickname: nick })
             });
-            if (res.ok) { lastStoryId = -1; fetchStories(); }
+            if (res.ok) {
+                setTimeout(pollVisibleStories, 200);
+            }
         }
 
         async function submitStory() {
@@ -1495,19 +1815,36 @@
                 alert(`Story is too long (${content.length} chars). Please reduce it to under 5000 chars.`);
                 return;
             }
-            const res = await fetch('/api/submit', { method: 'POST', body: JSON.stringify({ nickname: nick, content }) });
-            if (res.ok) { document.getElementById('content').value = ''; lastStoryId = -1; fetchStories(); }
+            const res = await fetch('/api/submit', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nickname: nick, content }) 
+            });
+            if (res.ok) { 
+                document.getElementById('content').value = ''; 
+                selectedArchiveDate = null;
+                const banner = document.getElementById('archive-filter-banner');
+                if (banner) banner.style.display = 'none';
+                if (window.location.hash && window.location.hash.startsWith('#archive=')) {
+                    history.replaceState(null, null, window.location.pathname + window.location.search);
+                }
+                setFeedTab('latest');
+                fetchCalendarDates();
+            }
         }
 
         async function postComment(sid) {
             const nick = ensureNickname(); if (!nick) return;
             const input = document.getElementById(`comment-input-${sid}`);
             const comment = input.value; if (!comment) return;
-            const res = await fetch('/api/comment', { method: 'POST', body: JSON.stringify({ story_id: sid, nickname: nick, comment }) });
+            const res = await fetch('/api/comment', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ story_id: sid, nickname: nick, comment }) 
+            });
             if (res.ok) { 
                 input.value = ''; 
-                lastStoryId = -1;
-                setTimeout(fetchStories, 100); 
+                setTimeout(pollVisibleStories, 200); 
             }
         }
 
@@ -1532,12 +1869,15 @@
 
         updateUserBadge(getStoredNick());
         updateSavedCount();
-        fetchStories().then(() => {
+        fetchCalendarDates();
+        setupReelObserver();
+        loadStoriesBatch({ reset: true }).then(() => {
             checkUrlHash();
         });
         fetchLatestPodcast();
-        setInterval(fetchStories, 2000);
+        setInterval(pollVisibleStories, 3000);
         setInterval(fetchLatestPodcast, 10000);
+        setInterval(fetchCalendarDates, 30000);
     </script>
 </body>
 </html>

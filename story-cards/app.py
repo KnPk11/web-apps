@@ -80,6 +80,10 @@ class StoryHandler(BaseHTTPRequestHandler):
             user_is_bot = is_bot(ua)
             query_params = parse_qs(url.query)
             date_filter = query_params.get('date', [None])[0]
+            limit_val = query_params.get('limit', [None])[0]
+            offset_val = query_params.get('offset', [None])[0]
+            sort_val = query_params.get('sort', ['latest'])[0]
+            ids_val = query_params.get('ids', [None])[0]
 
             conn = get_db()
             cursor = conn.cursor()
@@ -92,9 +96,47 @@ class StoryHandler(BaseHTTPRequestHandler):
             if date_filter:
                 conditions.append('strftime("%Y-%m-%d", created_at) = ?')
                 params.append(date_filter)
+            if ids_val:
+                try:
+                    parsed_ids = [int(x.strip()) for x in ids_val.split(',') if x.strip().isdigit()]
+                    if parsed_ids:
+                        placeholders = ','.join(['?'] * len(parsed_ids))
+                        conditions.append(f'id IN ({placeholders})')
+                        params.extend(parsed_ids)
+                    else:
+                        conditions.append('1 = 0')
+                except Exception:
+                    pass
 
             where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-            cursor.execute(f'SELECT * FROM stories {where_clause} ORDER BY created_at DESC', params)
+            
+            # Total count for pagination metadata
+            cursor.execute(f'SELECT COUNT(*) as total FROM stories {where_clause}', params)
+            total_row = cursor.fetchone()
+            total_count = total_row['total'] if total_row else 0
+
+            # Sorting order
+            if sort_val == 'top':
+                order_clause = 'ORDER BY COALESCE(upvotes, 0) DESC, id DESC'
+            else:
+                order_clause = 'ORDER BY created_at DESC, id DESC'
+
+            # Pagination parameters
+            pagination_clause = ''
+            exec_params = list(params)
+            if limit_val is not None:
+                try:
+                    limit_int = max(1, min(100, int(limit_val)))
+                    pagination_clause = 'LIMIT ?'
+                    exec_params.append(limit_int)
+                    if offset_val is not None:
+                        offset_int = max(0, int(offset_val))
+                        pagination_clause += ' OFFSET ?'
+                        exec_params.append(offset_int)
+                except (ValueError, TypeError):
+                    pass
+
+            cursor.execute(f'SELECT * FROM stories {where_clause} {order_clause} {pagination_clause}', exec_params)
             
             stories = [dict(row) for row in cursor.fetchall()]
             # Add all comments for each story (newest first)
@@ -107,8 +149,25 @@ class StoryHandler(BaseHTTPRequestHandler):
             conn.close()
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
+            self.send_header('X-Total-Count', str(total_count))
+            self.send_header('Access-Control-Expose-Headers', 'X-Total-Count')
             self.end_headers()
             self.wfile.write(json.dumps(stories).encode())
+
+        elif url.path == '/api/calendar-dates':
+            ua = self.headers.get('User-Agent', '')
+            user_is_bot = is_bot(ua)
+            conn = get_db()
+            cursor = conn.cursor()
+            where = "WHERE moderated = 1" if user_is_bot else ""
+            cursor.execute(f'SELECT strftime("%Y-%m-%d", created_at) as date, COUNT(*) as count FROM stories {where} GROUP BY date')
+            rows = cursor.fetchall()
+            conn.close()
+            data = {r['date']: r['count'] for r in rows if r['date']}
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(data).encode())
         elif url.path == '/api/latest-podcast':
             pod_dir = '/home/k/web-apps/story-cards/podcasts'
             # Support both mp3 and m4a
