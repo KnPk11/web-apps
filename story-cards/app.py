@@ -3,12 +3,29 @@ import sqlite3
 import os
 import time
 import subprocess
+import hashlib
+import ipaddress
 from http.server import HTTPServer, BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 from database import get_db, init_db
 
 PORT = 33363
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'stories.db')
+
+def is_lan_ip(ip_str):
+    try:
+        ip = ipaddress.ip_address(ip_str)
+        return ip.is_private or ip.is_loopback
+    except Exception:
+        return False
+
+def get_client_ip(handler):
+    xff = handler.headers.get('X-Forwarded-For', '')
+    if xff:
+        ip = xff.split(',')[0].strip()
+        if ip:
+            return ip
+    return handler.client_address[0]
 
 # Rate limiting state
 ratelimits = {}
@@ -198,6 +215,31 @@ class StoryHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(script.encode())
 
+        elif url.path == '/api/bookmarks':
+            client_ip = get_client_ip(self)
+            query_params = parse_qs(url.query)
+            nickname = query_params.get('nickname', [None])[0]
+            
+            keys = []
+            if nickname and nickname.strip():
+                keys.append(f"user_{nickname.strip().lower()}")
+            if is_lan_ip(client_ip) or is_lan_ip(self.client_address[0]):
+                keys.append(f"lan_{client_ip}")
+                keys.append("lan_shared")
+            
+            saved_ids = []
+            if keys:
+                conn = get_db(); cursor = conn.cursor()
+                placeholders = ','.join(['?'] * len(keys))
+                cursor.execute(f'SELECT DISTINCT story_id FROM user_bookmarks WHERE user_key IN ({placeholders}) ORDER BY created_at DESC', keys)
+                saved_ids = [row['story_id'] for row in cursor.fetchall()]
+                conn.close()
+            
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({'saved_ids': saved_ids}).encode())
+
         elif url.path.startswith('/podcasts/'):
             from urllib.parse import unquote
             filename = os.path.basename(unquote(url.path))
@@ -219,7 +261,7 @@ class StoryHandler(BaseHTTPRequestHandler):
         url = urlparse(self.path)
         content_length = int(self.headers['Content-Length'])
         post_data = self.rfile.read(content_length).decode('utf-8')
-        client_ip = self.client_address[0]
+        client_ip = get_client_ip(self)
         data = json.loads(post_data)
         
         if url.path == '/api/submit':
@@ -231,18 +273,6 @@ class StoryHandler(BaseHTTPRequestHandler):
             if content:
                 conn = get_db(); cursor = conn.cursor()
                 cursor.execute('INSERT INTO stories (nickname, content) VALUES (?, ?)', (nickname, content))
-                
-                # Keep last 100 stories only
-                cursor.execute('''
-                    DELETE FROM stories WHERE id NOT IN (
-                        SELECT id FROM stories ORDER BY created_at DESC LIMIT 100
-                    )
-                ''')
-                # Also cleanup orphan comments
-                cursor.execute('''
-                    DELETE FROM comments WHERE story_id NOT IN (SELECT id FROM stories)
-                ''')
-                
                 conn.commit(); conn.close()
                 self.send_response(201); self.end_headers()
         
@@ -265,9 +295,25 @@ class StoryHandler(BaseHTTPRequestHandler):
             if not story_id or delta not in (1, -1):
                 self.send_response(400); self.end_headers(); return
             
+            ua = self.headers.get('User-Agent', '')
+            voter_key = hashlib.sha256(f"{client_ip}:{ua}".encode()).hexdigest()[:32]
+            
             conn = get_db(); cursor = conn.cursor()
-            cursor.execute('UPDATE stories SET upvotes = MAX(0, COALESCE(upvotes, 0) + ?) WHERE id = ?', (delta, story_id))
-            conn.commit()
+            cursor.execute('SELECT 1 FROM story_upvotes WHERE story_id = ? AND voter_key = ?', (story_id, voter_key))
+            has_voted = cursor.fetchone() is not None
+            
+            if delta == 1:
+                if not has_voted:
+                    cursor.execute('INSERT OR IGNORE INTO story_upvotes (story_id, voter_key) VALUES (?, ?)', (story_id, voter_key))
+                    cursor.execute('UPDATE stories SET upvotes = COALESCE(upvotes, 0) + 1 WHERE id = ?', (story_id,))
+                    conn.commit()
+            elif delta == -1:
+                # Security: Only allow removing an upvote if THIS voter originally cast it!
+                if has_voted:
+                    cursor.execute('DELETE FROM story_upvotes WHERE story_id = ? AND voter_key = ?', (story_id, voter_key))
+                    cursor.execute('UPDATE stories SET upvotes = MAX(0, COALESCE(upvotes, 0) - 1) WHERE id = ?', (story_id,))
+                    conn.commit()
+            
             cursor.execute('SELECT upvotes FROM stories WHERE id = ?', (story_id,))
             row = cursor.fetchone()
             conn.close()
@@ -276,6 +322,36 @@ class StoryHandler(BaseHTTPRequestHandler):
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             self.wfile.write(json.dumps({'id': story_id, 'upvotes': new_count}).encode())
+
+        elif url.path == '/api/bookmarks':
+            story_id = data.get('story_id')
+            action = data.get('action', 'add')
+            nickname = data.get('nickname')
+            
+            if not story_id or action not in ('add', 'remove'):
+                self.send_response(400); self.end_headers(); return
+            
+            keys = []
+            if nickname and nickname.strip():
+                keys.append(f"user_{nickname.strip().lower()}")
+            if is_lan_ip(client_ip) or is_lan_ip(self.client_address[0]):
+                keys.append(f"lan_{client_ip}")
+                keys.append("lan_shared")
+            
+            if keys:
+                conn = get_db(); cursor = conn.cursor()
+                if action == 'add':
+                    for k in keys:
+                        cursor.execute('INSERT OR IGNORE INTO user_bookmarks (user_key, story_id) VALUES (?, ?)', (k, story_id))
+                else:
+                    placeholders = ','.join(['?'] * len(keys))
+                    cursor.execute(f'DELETE FROM user_bookmarks WHERE story_id = ? AND user_key IN ({placeholders})', [story_id] + keys)
+                conn.commit(); conn.close()
+            
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({'ok': True}).encode())
 
         elif url.path == '/api/rehabilitate':
             # Point 3: User edits their rejected content

@@ -18,10 +18,11 @@ import html
 import time
 import random
 import sqlite3
+import sys
 import urllib.request
 import urllib.error
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timedelta
 from difflib import SequenceMatcher
 
 # ── Paths & Config ─────────────────────────────────────────────
@@ -479,13 +480,6 @@ def save_story(nickname, content):
         VALUES (?, ?, 0)
     """, (nickname, content))
     inserted_id = cur.lastrowid
-
-    # Retain the newest 100 stories only
-    cur.execute("""
-        DELETE FROM stories WHERE id NOT IN (
-            SELECT id FROM stories ORDER BY created_at DESC LIMIT 100
-        )
-    """)
     conn.commit()
     conn.close()
     print(f"Saved story #{inserted_id} by @{nickname} to {DB_PATH} with moderated=0")
@@ -524,4 +518,20 @@ def main():
         print("=== Warning: No story could be fetched or generated this cycle ===")
 
 if __name__ == '__main__':
-    main()
+    if '--loop' in sys.argv or '--daemon' in sys.argv:
+        print(f"=== Starting StoryCards Fetcher Daemon (randomised 1-4 hour intervals) ===")
+        sys.stdout.flush()
+        while True:
+            try:
+                main()
+            except Exception as e:
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Error in fetch cycle: {e}")
+            
+            delay_sec = random.randint(3600, 14400) # 1 to 4 hours
+            delay_hours = delay_sec / 3600.0
+            next_run = datetime.now() + timedelta(seconds=delay_sec)
+            print(f"Next fetch scheduled in {delay_hours:.2f} hours (approx. {next_run.strftime('%Y-%m-%d %H:%M:%S')})")
+            sys.stdout.flush()
+            time.sleep(delay_sec)
+    else:
+        main()

@@ -1008,6 +1008,18 @@
             <button class="banner-clear-btn" onclick="clearDateFilter()">✕ Show All Stories</button>
         </div>
 
+        <div id="saved-tools-bar" style="display: none; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 8px 14px; background: rgba(30, 41, 59, 0.6); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); font-size: 0.85em; flex-wrap: wrap; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px; color: var(--text-dim);">
+                <span>☁️</span>
+                <span>Favourites backed up to server for your LAN session</span>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="file" id="bookmarks-import-file" accept=".json" style="display: none;" onchange="handleImportBookmarks(event)">
+                <button class="cal-quick-btn" onclick="exportBookmarksJson()" title="Download favourites as JSON backup">📥 Export</button>
+                <button class="cal-quick-btn" onclick="triggerImportBookmarks()" title="Restore favourites from JSON backup">📤 Import</button>
+            </div>
+        </div>
+
         <div class="feed-container" id="feed">
             <div id="reel-footer" class="reel-footer">
                 <div id="reel-loader" class="reel-loader" style="display: none;">
@@ -1073,10 +1085,12 @@
             document.querySelectorAll('.feed-tab').forEach(el => el.classList.remove('active'));
             const activeEl = document.getElementById(`tab-${tab}`);
             if (activeEl) activeEl.classList.add('active');
+            const savedBar = document.getElementById('saved-tools-bar');
+            if (savedBar) savedBar.style.display = tab === 'saved' ? 'flex' : 'none';
             loadStoriesBatch({ reset: true });
         }
 
-        function toggleBookmark(storyId) {
+        async function toggleBookmark(storyId) {
             const saved = getSavedStoryIds();
             const idx = saved.indexOf(storyId);
             const isNowSaved = idx === -1;
@@ -1111,6 +1125,129 @@
                         }
                     }, 300);
                 }
+            }
+
+            // Sync to server backup (LAN / user persistence)
+            try {
+                const nick = getStoredNick() || '';
+                await fetch('/api/bookmarks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        story_id: storyId,
+                        action: isNowSaved ? 'add' : 'remove',
+                        nickname: nick
+                    })
+                });
+            } catch (e) {
+                console.warn('Failed to sync bookmark to server:', e);
+            }
+        }
+
+        async function syncBookmarksFromServer() {
+            try {
+                const nick = getStoredNick() || '';
+                const res = await fetch(`/api/bookmarks?nickname=${encodeURIComponent(nick)}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data && Array.isArray(data.saved_ids)) {
+                    const localSaved = getSavedStoryIds();
+                    const mergedSet = new Set([...localSaved, ...data.saved_ids]);
+                    const mergedList = Array.from(mergedSet);
+
+                    // If local had favourites not yet backed up to server, upload them
+                    const missingOnServer = localSaved.filter(id => !data.saved_ids.includes(id));
+                    if (missingOnServer.length > 0) {
+                        for (const id of missingOnServer) {
+                            fetch('/api/bookmarks', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ story_id: id, action: 'add', nickname: nick })
+                            }).catch(() => {});
+                        }
+                    }
+
+                    if (mergedList.length !== localSaved.length) {
+                        setSavedStoryIds(mergedList);
+                        updateSavedCount();
+                    }
+
+                    // Update any currently rendered cards in DOM
+                    mergedList.forEach(id => {
+                        const card = document.getElementById(`story-card-${id}`);
+                        if (card) {
+                            const btn = card.querySelector('.bookmark-btn');
+                            if (btn && !btn.classList.contains('bookmarked')) {
+                                btn.classList.add('bookmarked');
+                                btn.title = 'Remove bookmark';
+                                const icon = btn.querySelector('.bookmark-icon');
+                                const text = btn.querySelector('.bookmark-text');
+                                if (icon) icon.innerText = '🔖';
+                                if (text) text.innerText = 'Saved';
+                            }
+                        }
+                    });
+                }
+            } catch (err) {
+                console.warn('Could not sync bookmarks from server:', err);
+            }
+        }
+
+        function exportBookmarksJson() {
+            const saved = getSavedStoryIds();
+            const exportData = {
+                exported_at: new Date().toISOString(),
+                bookmarks: saved
+            };
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `storycards-favourites-${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function triggerImportBookmarks() {
+            const input = document.getElementById('bookmarks-import-file');
+            if (input) input.click();
+        }
+
+        async function handleImportBookmarks(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            try {
+                const text = await file.text();
+                const json = JSON.parse(text);
+                const idsToImport = Array.isArray(json) ? json : (json.bookmarks || []);
+                const validIds = idsToImport.map(x => parseInt(x, 10)).filter(x => !isNaN(x) && x > 0);
+                if (validIds.length === 0) {
+                    alert('No valid bookmark IDs found in the imported file.');
+                    return;
+                }
+                const currentSaved = getSavedStoryIds();
+                const merged = Array.from(new Set([...currentSaved, ...validIds]));
+                setSavedStoryIds(merged);
+
+                const nick = getStoredNick() || '';
+                for (const id of validIds) {
+                    fetch('/api/bookmarks', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ story_id: id, action: 'add', nickname: nick })
+                    }).catch(() => {});
+                }
+
+                alert(`Successfully imported ${validIds.length} favourites!`);
+                if (currentFeedTab === 'saved') {
+                    loadStoriesBatch({ reset: true });
+                }
+            } catch (err) {
+                alert('Failed to parse bookmarks JSON file.');
+            } finally {
+                event.target.value = '';
             }
         }
 
@@ -1932,6 +2069,7 @@
 
         updateUserBadge(getStoredNick());
         updateSavedCount();
+        syncBookmarksFromServer();
         fetchCalendarDates();
         setupReelObserver();
         setupSmoothWheelScroll();

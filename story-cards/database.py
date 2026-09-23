@@ -44,6 +44,28 @@ def init_db():
         FOREIGN KEY (story_id) REFERENCES stories (id)
     )
     ''')
+
+    # Upvotes tracking table (prevents double upvoting and prevents unrating votes not cast by voter)
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS story_upvotes (
+        story_id INTEGER,
+        voter_key TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (story_id, voter_key),
+        FOREIGN KEY (story_id) REFERENCES stories (id)
+    )
+    ''')
+
+    # Favourites backup table (preserves LAN and user favourites across browser cookie/cache resets)
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS user_bookmarks (
+        user_key TEXT,
+        story_id INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_key, story_id),
+        FOREIGN KEY (story_id) REFERENCES stories (id)
+    )
+    ''')
     
     conn.commit()
     conn.close()
