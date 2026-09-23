@@ -501,10 +501,23 @@
             flex-shrink: 0;
         }
 
-        .toggle-extras-btn:hover {
+        .toggle-extras-btn:hover,
+        .toggle-extras-btn.active {
             background: rgba(255, 255, 255, 0.1);
             color: var(--accent);
             border-color: var(--accent);
+        }
+
+        .desktop-tab-label {
+            display: inline;
+        }
+
+        .cal-label-desktop {
+            display: inline;
+        }
+
+        .cal-label-mobile {
+            display: none;
         }
 
         .podcast-section {
@@ -583,21 +596,53 @@
                 flex: 2;
                 width: auto;
             }
+            .desktop-tab-label {
+                display: none;
+            }
+            .cal-label-desktop {
+                display: none;
+            }
+            .cal-label-mobile {
+                display: inline;
+            }
             .feed-tabs-bar {
                 margin-bottom: 10px;
                 gap: 6px;
+                flex-wrap: nowrap;
+                justify-content: space-between;
+                align-items: center;
+                width: 100%;
+                box-sizing: border-box;
+                overflow-x: auto;
+                scrollbar-width: none;
+                -webkit-overflow-scrolling: touch;
+            }
+            .feed-tabs-bar::-webkit-scrollbar {
+                display: none;
             }
             .feed-tabs {
-                gap: 4px;
-                padding: 3px;
+                gap: 2px;
+                padding: 2px 3px;
+                flex-shrink: 0;
+                display: flex;
+                align-items: center;
             }
             .feed-tab {
-                padding: 4px 8px;
-                font-size: 0.8em;
+                padding: 4px 6px;
+                font-size: 0.78em;
+                white-space: nowrap;
+            }
+            .feed-tools {
+                display: flex;
+                align-items: center;
+                flex-shrink: 0;
             }
             .toggle-extras-btn {
-                padding: 4px 8px;
-                font-size: 0.8em;
+                padding: 4px 7px;
+                font-size: 0.78em;
+                white-space: nowrap;
+                gap: 4px;
+                margin-bottom: 0;
             }
             .feed-container {
                 gap: 16px;
@@ -1162,12 +1207,12 @@
         <div class="feed-tabs-bar">
             <div class="feed-tabs">
                 <button class="feed-tab active" id="tab-latest" onclick="setFeedTab('latest')">🕒 Latest</button>
-                <button class="feed-tab" id="tab-top" onclick="setFeedTab('top')">▲ Top Rated</button>
+                <button class="feed-tab" id="tab-top" onclick="setFeedTab('top')">▲ Top<span class="desktop-tab-label"> Rated</span></button>
                 <button class="feed-tab" id="tab-saved" onclick="setFeedTab('saved')">🔖 Saved <span class="tab-count" id="saved-count">0</span></button>
             </div>
             <div class="feed-tools">
                 <button class="toggle-extras-btn" id="calendar-btn" onclick="toggleCalendar()" style="margin-bottom: 0;">
-                    <span>📅</span> Archive Calendar <span id="calendar-chevron">▼</span>
+                    <span>📅</span> <span class="cal-label-desktop">Archive Calendar</span><span class="cal-label-mobile">Calendar</span> <span id="calendar-chevron">▼</span>
                 </button>
                 <button class="toggle-extras-btn" id="extras-btn" style="display: none; margin-bottom: 0;" onclick="toggleExtras()">
                     <span>🌟</span> Extras <span id="extras-chevron">▼</span>
@@ -1539,9 +1584,11 @@
         function toggleCalendar() {
             const drawer = document.getElementById('calendar-drawer');
             const chevron = document.getElementById('calendar-chevron');
+            const calBtn = document.getElementById('calendar-btn');
             drawer.classList.toggle('open');
             if (drawer.classList.contains('open')) {
                 chevron.innerText = '▲';
+                if (calBtn) calBtn.classList.add('active');
                 if (selectedArchiveDate) {
                     const parts = selectedArchiveDate.split('-');
                     calYear = parseInt(parts[0], 10);
@@ -1550,6 +1597,7 @@
                 fetchCalendarDates();
             } else {
                 chevron.innerText = '▼';
+                if (calBtn) calBtn.classList.remove('active');
             }
         }
 
