@@ -11,7 +11,7 @@ if [ -f .env ]; then
 fi
 python3 -u review_worker.py >> worker.log 2>&1 &
 
-# Start story fetcher daemon (runs at randomised 1-4 hour intervals)
+# Start story fetcher daemon (runs at randomised 1-3 hour intervals)
 python3 -u fetch_story.py --loop >> fetch_story.log 2>&1 &
 
 # Start main web app
