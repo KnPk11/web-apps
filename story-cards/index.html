@@ -126,6 +126,7 @@
             flex-direction: column;
             gap: 25px;
             padding-bottom: 40px;
+            overscroll-behavior-y: contain;
         }
 
         .feed-container::-webkit-scrollbar { width: 8px; }
@@ -1644,6 +1645,69 @@
             });
         }
 
+        function setupSmoothWheelScroll() {
+            const feed = document.getElementById('feed');
+            if (!feed) return;
+
+            let targetScroll = feed.scrollTop;
+            let isWheeling = false;
+            let rafId = null;
+
+            // Keep targetScroll synchronised whenever the user scrolls via scrollbar or touch
+            feed.addEventListener('scroll', () => {
+                if (!isWheeling) {
+                    targetScroll = feed.scrollTop;
+                }
+            }, { passive: true });
+
+            feed.addEventListener('wheel', (e) => {
+                // Allow browser zoom (Ctrl + wheel) or purely horizontal scrolls
+                if (e.ctrlKey || Math.abs(e.deltaY) < 0.5) return;
+                if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+
+                // If user is hovering over a scrollable inner element (e.g. comment list)
+                const scrollable = e.target.closest('.comment-list');
+                if (scrollable && scrollable.scrollHeight > scrollable.clientHeight) {
+                    const canScrollDown = e.deltaY > 0 && scrollable.scrollTop + scrollable.clientHeight < scrollable.scrollHeight;
+                    const canScrollUp = e.deltaY < 0 && scrollable.scrollTop > 0;
+                    if (canScrollDown || canScrollUp) return;
+                }
+
+                e.preventDefault();
+
+                let delta = e.deltaY;
+                if (e.deltaMode === 1) delta *= 25; // Line mode
+                else if (e.deltaMode === 2) delta *= feed.clientHeight; // Page mode
+
+                // Speed damping factor: scale down mouse wheel travel so stories scroll slower & with more control
+                const SPEED_FACTOR = 0.42;
+                delta *= SPEED_FACTOR;
+
+                const maxScroll = feed.scrollHeight - feed.clientHeight;
+                if (!isWheeling) {
+                    targetScroll = feed.scrollTop;
+                }
+                targetScroll = Math.max(0, Math.min(maxScroll, targetScroll + delta));
+
+                isWheeling = true;
+                if (!rafId) {
+                    const step = () => {
+                        const current = feed.scrollTop;
+                        const diff = targetScroll - current;
+                        if (Math.abs(diff) > 0.5) {
+                            feed.scrollTop = current + diff * 0.25;
+                            rafId = requestAnimationFrame(step);
+                        } else {
+                            feed.scrollTop = targetScroll;
+                            rafId = null;
+                            isWheeling = false;
+                        }
+                    };
+                    rafId = requestAnimationFrame(step);
+                }
+            }, { passive: false });
+        }
+
         async function pollVisibleStories() {
             if (isLoadingMore) return;
             if (currentFeedTab === 'saved') {
@@ -1870,6 +1934,7 @@
         updateSavedCount();
         fetchCalendarDates();
         setupReelObserver();
+        setupSmoothWheelScroll();
         loadStoriesBatch({ reset: true }).then(() => {
             checkUrlHash();
         });
