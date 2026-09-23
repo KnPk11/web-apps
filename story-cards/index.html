@@ -83,6 +83,160 @@
             border: 1px solid rgba(255,255,255,0.1);
             flex-shrink: 0;
             box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+            transition: all 0.25s ease;
+        }
+
+        .submit-section.is-collapsed {
+            padding: 0;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            margin-bottom: 14px;
+        }
+
+        .submit-section.is-collapsed .composer-bar {
+            display: flex;
+        }
+
+        .submit-section.is-collapsed .composer-expanded {
+            display: none;
+        }
+
+        .submit-section:not(.is-collapsed) .composer-bar {
+            display: none;
+        }
+
+        .submit-section:not(.is-collapsed) .composer-expanded {
+            display: block;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        .composer-bar {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 9px 14px;
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+
+        .composer-bar:hover {
+            border-color: rgba(34, 211, 238, 0.4);
+            background: rgba(30, 41, 59, 0.85);
+            transform: translateY(-1px);
+        }
+
+        .composer-bar-content {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .composer-bar-icon {
+            font-size: 1.1em;
+            flex-shrink: 0;
+        }
+
+        .composer-bar-text {
+            color: var(--text-dim);
+            font-size: 0.9em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .composer-bar-btn {
+            background: rgba(34, 211, 238, 0.15);
+            color: var(--accent);
+            border: 1px solid rgba(34, 211, 238, 0.35);
+            padding: 3px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: 700;
+            white-space: nowrap;
+            flex-shrink: 0;
+            transition: all 0.2s;
+        }
+
+        .composer-bar:hover .composer-bar-btn {
+            background: var(--accent);
+            color: #0f172a;
+        }
+
+        .composer-top-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .composer-close-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            font-size: 1.1em;
+            cursor: pointer;
+            padding: 2px 8px;
+            border-radius: 6px;
+            transition: all 0.2s;
+            margin-left: auto;
+            line-height: 1;
+        }
+
+        .composer-close-btn:hover {
+            color: white;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .composer-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .composer-cancel-btn {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-dim);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            padding: 10px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+            height: 40px;
+            flex-shrink: 0;
+            display: none;
+        }
+
+        .composer-cancel-btn:hover {
+            color: white;
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .composer-submit-btn {
+            background: var(--accent);
+            color: #0f172a;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.2s, background 0.2s;
+            flex-shrink: 0;
+            height: 40px;
+        }
+
+        .composer-submit-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(34, 211, 238, 0.3);
         }
 
         .submit-grid {
@@ -103,19 +257,6 @@
             font-size: 0.95em;
             resize: vertical;
             min-height: 60px;
-        }
-
-        .submit-section button {
-            background: var(--accent);
-            color: #0f172a;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: transform 0.2s, background 0.2s;
-            flex-shrink: 0;
-            height: 40px;
         }
 
         .feed-container {
@@ -401,14 +542,75 @@
 
         /* Mobile adjustments */
         @media (max-width: 600px) {
-            .app-container { padding: 10px; }
-            .header h1 { font-size: 1.5em; }
-            .story-card { padding: 16px; }
-            .submit-grid { flex-direction: column; align-items: stretch; }
-            .submit-section button { width: 100%; }
+            .app-container {
+                padding: 8px 10px 0 10px;
+            }
+            .header {
+                padding: 4px 0 6px 0;
+                gap: 2px;
+            }
+            .header h1 {
+                font-size: 1.35em;
+            }
+            .header-subtitle {
+                display: none !important;
+            }
+            .submit-section {
+                margin-bottom: 10px;
+                padding: 12px;
+            }
+            .submit-section.is-collapsed {
+                margin-bottom: 10px;
+                padding: 0;
+            }
+            .submit-grid {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 8px;
+            }
+            .composer-actions {
+                width: 100%;
+                display: flex;
+                gap: 8px;
+            }
+            .composer-cancel-btn {
+                display: inline-flex;
+                justify-content: center;
+                align-items: center;
+                flex: 1;
+            }
+            .composer-submit-btn {
+                flex: 2;
+                width: auto;
+            }
+            .feed-tabs-bar {
+                margin-bottom: 10px;
+                gap: 6px;
+            }
+            .feed-tabs {
+                gap: 4px;
+                padding: 3px;
+            }
+            .feed-tab {
+                padding: 4px 8px;
+                font-size: 0.8em;
+            }
+            .toggle-extras-btn {
+                padding: 4px 8px;
+                font-size: 0.8em;
+            }
+            .feed-container {
+                gap: 16px;
+                padding-right: 4px;
+                padding-bottom: 24px;
+            }
+            .story-card {
+                padding: 14px;
+                border-radius: 16px;
+            }
             #podcast-player { 
                 position: static; 
-                margin-bottom: 20px;
+                margin-bottom: 16px;
             }
         }
 
@@ -926,16 +1128,34 @@
     <div class="app-container">
         <div class="header">
             <h1>StoryCards</h1>
-            <p style="color: var(--text-dim)">Latest stories and moderator roasts</p>
+            <p class="header-subtitle" style="color: var(--text-dim)">Latest stories and moderator roasts</p>
         </div>
 
-        <div class="submit-section">
-            <div class="submit-grid">
-                <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
-                    <div id="nick-display" class="user-badge" style="display: none; align-self: flex-start; width: fit-content; margin-bottom: 0;" onclick="changeNickname()"></div>
-                    <textarea id="content" rows="2" placeholder="What happened today?" maxlength="10000"></textarea>
+        <div class="submit-section is-collapsed" id="submit-section">
+            <!-- Compact Single-Line Composer Bar (Tuck-away state) -->
+            <div class="composer-bar" id="composer-bar" onclick="expandComposer()" title="Tap to share a story">
+                <div class="composer-bar-content">
+                    <span class="composer-bar-icon">✍️</span>
+                    <span class="composer-bar-text" id="composer-bar-text">Share a story or fail...</span>
                 </div>
-                <button onclick="submitStory()">Post Story</button>
+                <span class="composer-bar-btn">+ Post</span>
+            </div>
+
+            <!-- Expanded Composer Form -->
+            <div class="composer-expanded" id="composer-expanded">
+                <div class="composer-top-row">
+                    <div id="nick-display" class="user-badge" style="display: none; align-self: flex-start; width: fit-content; margin-bottom: 0;" onclick="changeNickname()"></div>
+                    <button type="button" class="composer-close-btn" onclick="collapseComposer()" title="Collapse composer" aria-label="Collapse composer">✕</button>
+                </div>
+                <div class="submit-grid">
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+                        <textarea id="content" rows="2" placeholder="What happened today?" maxlength="10000"></textarea>
+                    </div>
+                    <div class="composer-actions">
+                        <button type="button" class="composer-cancel-btn" onclick="collapseComposer()">Cancel</button>
+                        <button type="button" class="composer-submit-btn" onclick="submitStory()">Post Story</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1956,13 +2176,49 @@
 
         function updateUserBadge(nick) {
             const el = document.getElementById('nick-display');
+            const barText = document.getElementById('composer-bar-text');
             if (nick && nick.trim() !== "") {
-                el.innerText = `Posting as @${nick}`;
-                el.style.display = 'block';
-                el.style.cursor = 'default';
-                el.onclick = null;
+                if (el) {
+                    el.innerText = `Posting as @${nick}`;
+                    el.style.display = 'block';
+                    el.style.cursor = 'default';
+                    el.onclick = null;
+                }
+                if (barText) {
+                    barText.innerText = `Share a story, @${nick}...`;
+                }
             } else {
-                el.style.display = 'none';
+                if (el) el.style.display = 'none';
+                if (barText) barText.innerText = 'Share a story or fail...';
+            }
+        }
+
+        function expandComposer() {
+            const section = document.getElementById('submit-section');
+            if (section) {
+                section.classList.remove('is-collapsed');
+                const textarea = document.getElementById('content');
+                if (textarea) {
+                    setTimeout(() => textarea.focus(), 60);
+                }
+            }
+        }
+
+        function collapseComposer() {
+            const section = document.getElementById('submit-section');
+            if (section) {
+                section.classList.add('is-collapsed');
+            }
+        }
+
+        function initComposerState() {
+            const section = document.getElementById('submit-section');
+            if (!section) return;
+            // On mobile devices / smaller screens, default to collapsed to maximise feed viewport
+            if (window.innerWidth <= 600) {
+                section.classList.add('is-collapsed');
+            } else {
+                section.classList.remove('is-collapsed');
             }
         }
 
@@ -2022,6 +2278,10 @@
             });
             if (res.ok) { 
                 document.getElementById('content').value = ''; 
+                // Auto-collapse on mobile after posting
+                if (window.innerWidth <= 600) {
+                    collapseComposer();
+                }
                 selectedArchiveDate = null;
                 const banner = document.getElementById('archive-filter-banner');
                 if (banner) banner.style.display = 'none';
@@ -2067,6 +2327,7 @@
         }
         window.addEventListener('hashchange', checkUrlHash);
 
+        initComposerState();
         updateUserBadge(getStoredNick());
         updateSavedCount();
         syncBookmarksFromServer();
