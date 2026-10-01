@@ -485,8 +485,88 @@ def save_story(nickname, content):
     print(f"Saved story #{inserted_id} by @{nickname} to {DB_PATH} with moderated=0")
     return inserted_id
 
+def generate_ai_comment(story_content: str, story_category: str = "general") -> tuple[str, str]:
+    """Generate a realistic Reddit-style comment for a story."""
+    if not NVIDIA_API_KEY:
+        return None, None
+    
+    comment_prompts = [
+        f"Write a single Reddit-style comment reacting to this story. Be conversational, use internet slang naturally, maybe ask a follow-up question or share a similar experience. Keep it under 300 chars.\n\nStory: {story_content[:500]}",
+        f"Write a funny, slightly cynical Reddit comment on this story. Sound like a real person scrolling at 2am. Under 300 chars.\n\nStory: {story_content[:500]}",
+        f"Write a supportive or 'been there' style Reddit comment. Casual, lowercase ok, abbreviations fine. Under 300 chars.\n\nStory: {story_content[:500]}",
+        f"Write a skeptical 'this sounds fake but ok' Reddit comment. Under 300 chars.\n\nStory: {story_content[:500]}",
+        f"Write a Reddit comment that adds a relevant detail or asks 'what happened next?' Under 300 chars.\n\nStory: {story_content[:500]}",
+    ]
+    
+    prompt = random.choice(comment_prompts)
+    
+    payload = json.dumps({
+        'model': NVIDIA_MODEL,
+        'messages': [
+            {'role': 'system', 'content': 'You write authentic Reddit comments. Casual, varied tone, real internet voice. Output ONLY the comment text, no quotes, no attribution.'},
+            {'role': 'user', 'content': prompt}
+        ],
+        'max_tokens': 200,
+        'temperature': 0.9
+    }).encode('utf-8')
+    
+    req = urllib.request.Request(
+        f'{NVIDIA_BASE_URL}/chat/completions',
+        data=payload,
+        headers={
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {NVIDIA_API_KEY}',
+            'User-Agent': 'StoryCardsCommenter/1.0'
+        },
+        method='POST'
+    )
+    
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+        comment = data['choices'][0]['message']['content'].strip()
+        comment = re.sub(r'^(Comment:|">|"|>)\s*', '', comment, flags=re.I).strip('"\' ')
+        if len(comment) >= 20:
+            nickname = random.choice(FUNNY_NICKNAMES)
+            return nickname, comment
+    except Exception as e:
+        print(f"AI comment generation error: {e}")
+    
+    return None, None
+
+
+def save_comment(story_id: int, nickname: str, comment: str):
+    """Save a comment to the database."""
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO comments (story_id, nickname, comment, moderated)
+        VALUES (?, ?, ?, 1)
+    """, (story_id, nickname, comment))
+    conn.commit()
+    conn.close()
+    print(f"Saved AI comment by @{nickname} on story #{story_id}")
+
+
+def maybe_add_ai_comments(story_id: int, story_content: str, category: str):
+    """With some probability, add 1-3 AI comments to a newly posted story."""
+    # 60% chance to add comments
+    if random.random() > 0.6:
+        return
+    
+    num_comments = random.randint(1, 3)
+    for _ in range(num_comments):
+        time.sleep(random.uniform(0.5, 2.0))  # Stagger them
+        nickname, comment = generate_ai_comment(story_content, category)
+        if nickname and comment:
+            save_comment(story_id, nickname, comment)
+
+
 def main():
     print(f"=== StoryCards Fetcher Started [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ===")
+    
+    # 1/4 chance to skip Reddit and go straight to AI-generated story (mimicking human style)
+    force_ai = random.random() < 0.25
     
     # 1/3 finance, 1/3 tech & work fails, 1/3 life stories
     roll = random.random()
@@ -498,13 +578,21 @@ def main():
         category = "lifestory"
 
     print(f"Target story category this run: {category.upper()} (1/3 finance, 1/3 tech/work fails, 1/3 life stories)")
+    if force_ai:
+        print("Forcing AI-generated story this cycle (1/4 chance)")
 
-    # 1. Try fetching a real story from Reddit adhering to target category
-    nickname, content = fetch_reddit_story(target_category=category)
+    # 1. Try fetching a real story from Reddit adhering to target category (unless forced AI)
+    if not force_ai:
+        nickname, content = fetch_reddit_story(target_category=category)
+    else:
+        nickname, content = None, None
 
     # 2. If Reddit was blocked or unavailable or no matching story passed filter, fall back to AI generation
     if not content:
-        print(f"Reddit fetch yielded no qualifying stories; falling back to dynamic AI generation ({category})...")
+        if force_ai:
+            print(f"Generating AI story as requested ({category})...")
+        else:
+            print(f"Reddit fetch yielded no qualifying stories; falling back to dynamic AI generation ({category})...")
         nickname, content = generate_ai_story(category=category)
 
     # 3. Save to database if we have content
@@ -512,6 +600,8 @@ def main():
         story_id = save_story(nickname, content)
         if story_id:
             print(f"=== Successfully processed story #{story_id} ===")
+            # Possibly add AI comments to the new story
+            maybe_add_ai_comments(story_id, content, category)
         else:
             print("=== Story was identified as duplicate and not saved ===")
     else:
