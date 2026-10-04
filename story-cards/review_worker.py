@@ -131,7 +131,21 @@ def clean_llm_response(text):
 
     # Strip leftover draft labels and surrounding quotes
     text = re.sub(r'^(?:\d+\.\s*\*\*Draft.*?\*\*[:\s]*|Draft\s*\d*:|Review:|Response:|Output:)\s*', '', text, flags=re.IGNORECASE)
-    return text.strip('"\' ')
+    text = text.strip('"\' ')
+
+    # Detect and strip loop repetition where the model repeats a large chunk or entire review
+    n = len(text)
+    for l in range(n // 2, 20, -1):
+        chunk = text[:l].strip()
+        idx = text.find(chunk, len(chunk) // 2)
+        if idx != -1 and idx > 20:
+            text = text[:idx].strip()
+            break
+
+    # Strip accidental adjacent duplicated words
+    text = re.sub(r'\b(\w+)\s+\1\b', r'\1', text, flags=re.IGNORECASE)
+
+    return text.strip()
 
 # Point 2: Mad Libs substitution list
 OFFENSIVE_MAP = {
@@ -301,8 +315,9 @@ def get_unhinged_review(content, is_comment=False, context=""):
         system_prompt = (
             f"{base_prompt} Respond naturally like a real person {selected_atmosphere}. No corporate talk. "
             "Keep the focus entirely on reacting to the author's story rather than describing what you are doing. "
-            "Do NOT output any thinking process, reasoning, planning steps, or constraint checklists. "
-            "Provide strictly your in-character review text."
+            "Do NOT quote whole lines or parrot back exact sentences from the story. React with original thoughts. "
+            "Provide exactly ONE concise in-character response. Do NOT repeat paragraphs or loop on yourself. "
+            "Do NOT output any thinking process, reasoning, planning steps, or constraint checklists."
         )
         full_content = content
 
@@ -310,7 +325,7 @@ def get_unhinged_review(content, is_comment=False, context=""):
 
     # Call NVIDIA endpoint via Hermes-configured provider
     try:
-        result = _llm_chat(full_content, system=system_prompt, max_tokens=1536, temperature=0.85)
+        result = _llm_chat(full_content, system=system_prompt, max_tokens=500, temperature=0.85)
         if result:
             cleaned = clean_llm_response(result)
             return cleaned if cleaned else result
