@@ -609,7 +609,7 @@ def main():
 
 if __name__ == '__main__':
     if '--loop' in sys.argv or '--daemon' in sys.argv:
-        print(f"=== Starting StoryCards Fetcher Daemon (randomised 1-3 hour intervals) ===")
+        print(f"=== Starting StoryCards Fetcher Daemon (randomised 30m-6h intervals) ===")
         sys.stdout.flush()
         while True:
             try:
@@ -617,7 +617,7 @@ if __name__ == '__main__':
             except Exception as e:
                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Error in fetch cycle: {e}")
             
-            delay_sec = random.randint(3600, 10800) # 1 to 3 hours
+            delay_sec = random.randint(1800, 21600) # 30 minutes to 6 hours
             delay_hours = delay_sec / 3600.0
             next_run = datetime.now() + timedelta(seconds=delay_sec)
             print(f"Next fetch scheduled in {delay_hours:.2f} hours (approx. {next_run.strftime('%Y-%m-%d %H:%M:%S')})")
