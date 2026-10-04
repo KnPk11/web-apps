@@ -156,12 +156,12 @@ class StoryHandler(BaseHTTPRequestHandler):
             cursor.execute(f'SELECT * FROM stories {where_clause} {order_clause} {pagination_clause}', exec_params)
             
             stories = [dict(row) for row in cursor.fetchall()]
-            # Add all comments for each story (newest first)
+            # Add all comments for each story (oldest first, so new comments appear at the bottom)
             for story in stories:
                 if user_is_bot:
-                    cursor.execute('SELECT id, nickname, comment, review, moderated, created_at FROM comments WHERE story_id = ? AND moderated = 1 ORDER BY created_at DESC', (story['id'],))
+                    cursor.execute('SELECT id, nickname, comment, review, moderated, created_at FROM comments WHERE story_id = ? AND moderated = 1 ORDER BY created_at ASC, id ASC', (story['id'],))
                 else:
-                    cursor.execute('SELECT id, nickname, comment, review, moderated, created_at FROM comments WHERE story_id = ? ORDER BY created_at DESC', (story['id'],))
+                    cursor.execute('SELECT id, nickname, comment, review, moderated, created_at FROM comments WHERE story_id = ? ORDER BY created_at ASC, id ASC', (story['id'],))
                 story['comments'] = [dict(row) for row in cursor.fetchall()]
             conn.close()
             self.send_response(200)
