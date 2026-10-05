@@ -103,8 +103,13 @@ def clean_llm_response(text):
     if critique_cut and critique_cut.start() > 40:
         text = text[:critique_cut.start()].strip()
 
-    # Handle reasoning models that output "Here's a thinking process: ..." or numbered reasoning steps
-    if "thinking process" in text.lower() or text.lstrip().startswith(("1. **Analyze", "1. Analyze", "**Analyze")):
+    # Handle reasoning models that output "Here's a thinking process: ...", meta-analysis, or numbered reasoning steps
+    has_reasoning = (
+        "thinking process" in text.lower() or 
+        text.lstrip().startswith(("1. **Analyze", "1. Analyze", "**Analyze")) or
+        bool(re.search(r'(?:^|\n)(?:The user is|This is a .*? persona|I need to|The prompt says|Wait,\s|Let\'s see|The constraints:)\b', text, re.IGNORECASE))
+    )
+    if has_reasoning:
         # Priority 1: Check if there is a "Revised Draft:", "Final Draft:", "Draft:", or "Final polish:" block
         draft_matches = list(re.finditer(r'(?:Revised Draft|Final Draft|Final Polish|Final Response|Draft\s*\d*|Draft|Output)\s*:\s*\n*(.*?)(?=\n\s*\n\s*(?:Sentence|Count|\d+\.|\*Critique|Draft|Revised|Check|\Z))', text, re.IGNORECASE | re.DOTALL))
         if draft_matches:
@@ -112,17 +117,22 @@ def clean_llm_response(text):
             if len(extracted) > 40:
                 return clean_llm_response(extracted)
 
+        # Priority 2: Check for in-character quoted paragraphs like "You're panic-selling..."
+        quoted = [q.strip() for q in re.findall(r'"([^"\n]{50,800})"', text) if not re.search(r'^(?:Ruthlessly|You are|Constraint|Max \d|Sound like)', q.strip(), re.IGNORECASE)]
+        if quoted:
+            return clean_llm_response(quoted[-1])
+
         paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
         candidates = []
         for p in paragraphs:
             # Skip analytical / step headers
-            if re.search(r'(\*Critique:\*|\*\*Analyze|\*\*Identify|\*\*Determine|\*\*Deconstruct|\*\*Persona|\*\*Brainstorm|\*\*Drafting|Sentence count|Count:|Check constraints)', p, re.IGNORECASE):
+            if re.search(r'(\*Critique:\*|\*\*Analyze|\*\*Identify|\*\*Determine|\*\*Deconstruct|\*\*Persona|\*\*Brainstorm|\*\*Drafting|Sentence count|Count:|Check constraints|The user is|This is a .*? persona|The prompt says|The constraints:)', p, re.IGNORECASE):
                 continue
             # Extract content from draft markers (e.g. "Draft - Attempt 4: ...")
             draft_match = re.search(r'^\d+\.\s*\*\*Draft[^\*]*\*\*:\s*(.*)', p, re.IGNORECASE | re.DOTALL)
             if draft_match:
                 candidates.append(draft_match.group(1).strip())
-            elif not re.match(r'^(\d+\.|\*|-|Here\'s a thinking|Selected:|Let\s|Wait,\s|I need to)', p, re.IGNORECASE):
+            elif not re.match(r'^(\d+\.|\*|-|Here\'s a thinking|Selected:|Let\s|Wait,\s|I need to|Actually,\s)', p, re.IGNORECASE):
                 candidates.append(p)
         if candidates:
             text = candidates[-1]
@@ -317,7 +327,8 @@ def get_unhinged_review(content, is_comment=False, context=""):
             "Keep the focus entirely on reacting to the author's story rather than describing what you are doing. "
             "Do NOT quote whole lines or parrot back exact sentences from the story. React with original thoughts. "
             "Provide exactly ONE concise in-character response. Do NOT repeat paragraphs or loop on yourself. "
-            "Do NOT output any thinking process, reasoning, planning steps, or constraint checklists."
+            "Do NOT output any thinking process, reasoning, planning steps, or constraint checklists. "
+            "Do NOT analyze the prompt, discuss the persona, or explain your approach; provide strictly your final in-character reaction text."
         )
         full_content = content
 
@@ -325,7 +336,7 @@ def get_unhinged_review(content, is_comment=False, context=""):
 
     # Call NVIDIA endpoint via Hermes-configured provider
     try:
-        result = _llm_chat(full_content, system=system_prompt, max_tokens=500, temperature=0.85)
+        result = _llm_chat(full_content, system=system_prompt, max_tokens=300, temperature=0.85)
         if result:
             cleaned = clean_llm_response(result)
             return cleaned if cleaned else result
