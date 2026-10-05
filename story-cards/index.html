@@ -447,7 +447,37 @@
             letter-spacing: 1px;
         }
 
-        .roast-text { font-style: italic; color: #d1fae5; }
+        .roast-text { 
+            font-style: italic; 
+            color: #d1fae5;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+            transition: all 0.3s ease;
+            display: block;
+        }
+
+        .roast-text.collapsed {
+            display: -webkit-box;
+            -webkit-line-clamp: 5;
+            -webkit-box-orient: vertical;
+            max-height: 125px;
+            overflow: hidden;
+            mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+            -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+            white-space: pre-wrap;
+        }
+
+        .roast-show-more-link {
+            color: var(--mod-accent);
+            cursor: pointer;
+            font-size: 0.8em;
+            font-weight: bold;
+            display: inline-block;
+            margin-top: 8px;
+            text-decoration: underline;
+            text-transform: lowercase;
+        }
 
         .comments-section { border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; }
         .comment-list { list-style: none; padding: 0; margin: 0 0 15px 0; max-height: 200px; overflow-y: auto; }
@@ -1817,7 +1847,8 @@
                 ${story.moderated === 1 && story.review && story.review !== 'SKIPPED' ? `
                     <div class="roast-bubble">
                         <div class="roast-label">Moderator Review</div>
-                        <div class="roast-text">"${story.review}"</div>
+                        <div class="roast-text ${story.review && story.review.length > 300 ? 'collapsed' : ''}" id="review-text-${story.id}">"${story.review}"</div>
+                        ${story.review && story.review.length > 300 ? `<a class="roast-show-more-link" id="review-expand-btn-${story.id}" onclick="toggleReviewExpand(${story.id})">show all</a>` : ''}
                     </div>
                 ` : ''}
                 <div class="comments-section">
@@ -1870,12 +1901,14 @@
             // Update roast review bubble
             let roastBubble = card.querySelector('.roast-bubble');
             if (story.moderated === 1 && story.review && story.review !== 'SKIPPED') {
+                const reviewNeedsTruncation = story.review && story.review.length > 300;
                 if (!roastBubble) {
                     roastBubble = document.createElement('div');
                     roastBubble.className = 'roast-bubble';
                     roastBubble.innerHTML = `
                         <div class="roast-label">Moderator Review</div>
-                        <div class="roast-text">"${story.review}"</div>
+                        <div class="roast-text ${reviewNeedsTruncation ? 'collapsed' : ''}" id="review-text-${story.id}">"${story.review}"</div>
+                        ${reviewNeedsTruncation ? `<a class="roast-show-more-link" id="review-expand-btn-${story.id}" onclick="toggleReviewExpand(${story.id})">show all</a>` : ''}
                     `;
                     const commentsSection = card.querySelector('.comments-section');
                     if (commentsSection) card.insertBefore(roastBubble, commentsSection);
@@ -1884,6 +1917,21 @@
                     const textEl = roastBubble.querySelector('.roast-text');
                     if (textEl && textEl.innerText !== `"${story.review}"`) {
                         textEl.innerText = `"${story.review}"`;
+                        let expandBtn = roastBubble.querySelector('.roast-show-more-link');
+                        if (reviewNeedsTruncation) {
+                            if (!expandBtn) {
+                                textEl.classList.add('collapsed');
+                                expandBtn = document.createElement('a');
+                                expandBtn.className = 'roast-show-more-link';
+                                expandBtn.id = `review-expand-btn-${story.id}`;
+                                expandBtn.onclick = () => toggleReviewExpand(story.id);
+                                expandBtn.innerText = 'show all';
+                                roastBubble.appendChild(expandBtn);
+                            }
+                        } else {
+                            textEl.classList.remove('collapsed');
+                            if (expandBtn) expandBtn.remove();
+                        }
                     }
                 }
             }
@@ -2273,6 +2321,19 @@
         function toggleExpand(id) {
             const text = document.getElementById(`story-text-${id}`);
             const btn = document.getElementById(`expand-btn-${id}`);
+            if (text.classList.contains('collapsed')) {
+                text.classList.remove('collapsed');
+                btn.innerText = "show less";
+            } else {
+                text.classList.add('collapsed');
+                btn.innerText = "show all";
+            }
+        }
+
+        function toggleReviewExpand(id) {
+            const text = document.getElementById(`review-text-${id}`);
+            const btn = document.getElementById(`review-expand-btn-${id}`);
+            if (!text || !btn) return;
             if (text.classList.contains('collapsed')) {
                 text.classList.remove('collapsed');
                 btn.innerText = "show less";
