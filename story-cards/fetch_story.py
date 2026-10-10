@@ -486,6 +486,48 @@ def save_story(nickname, content):
     print(f"Saved story #{inserted_id} by @{nickname} to {DB_PATH} with moderated=0")
     return inserted_id
 
+def clean_ai_comment(raw: str) -> str:
+    """Strip chain-of-thought reasoning, meta-analysis, and draft markers from AI comment."""
+    if not raw:
+        return ""
+    text = raw.strip()
+    # Strip <think>...</think> blocks
+    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL | re.IGNORECASE).strip()
+
+    meta_patterns = [
+        r'\bthe user (?:wants|is asking|is requesting|asks)\b',
+        r'\bthinking process\b',
+        r'\blet me think\b',
+        r'\bi need to (?:write|generate|create)\b',
+        r'\bhere is a draft\b',
+        r'\bi will write\b',
+    ]
+    has_meta = any(re.search(p, text, re.IGNORECASE) for p in meta_patterns)
+
+    if has_meta:
+        # Check if the actual in-character response was placed in quotes
+        quoted = re.findall(r'"([^"\n]{20,500})"', text)
+        if quoted:
+            text = quoted[-1].strip()
+        else:
+            paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+            candidates = [p for p in paragraphs if not any(re.search(mp, p, re.IGNORECASE) for mp in meta_patterns)]
+            if candidates:
+                text = candidates[-1]
+            elif paragraphs:
+                text = paragraphs[-1]
+
+    # Clean leading markers and quotation marks
+    text = re.sub(r'^(?:Comment|Draft|Output|Response):\s*', '', text, flags=re.IGNORECASE)
+    text = text.strip('"\' \n')
+
+    # Hard rejection if meta reasoning still leaked
+    if any(re.search(p, text, re.IGNORECASE) for p in meta_patterns):
+        return ""
+
+    return text
+
+
 def generate_ai_comment(story_content: str, story_category: str = "general") -> tuple[str, str]:
     """Generate a realistic Reddit-style comment for a story."""
     if not NVIDIA_API_KEY:
@@ -504,7 +546,7 @@ def generate_ai_comment(story_content: str, story_category: str = "general") -> 
     payload = json.dumps({
         'model': NVIDIA_MODEL,
         'messages': [
-            {'role': 'system', 'content': 'You write authentic Reddit comments. Casual, varied tone, real internet voice. Output ONLY the comment text, no quotes, no attribution.'},
+            {'role': 'system', 'content': 'You write authentic Reddit comments. Casual, varied tone, real internet voice. DO NOT output thinking processes, reasoning steps, or meta-explanations (never say "The user wants..." or "Let me think"). Output ONLY the direct comment text, no quotes, no attribution.'},
             {'role': 'user', 'content': prompt}
         ],
         'max_tokens': 200,
@@ -525,8 +567,8 @@ def generate_ai_comment(story_content: str, story_category: str = "general") -> 
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:
             data = json.loads(resp.read().decode('utf-8'))
-        comment = data['choices'][0]['message']['content'].strip()
-        comment = re.sub(r'^(Comment:|">|"|>)\s*', '', comment, flags=re.I).strip('"\' ')
+        raw = data['choices'][0]['message']['content'].strip()
+        comment = clean_ai_comment(raw)
         if len(comment) >= 20:
             nickname = random.choice(FUNNY_NICKNAMES)
             return nickname, comment

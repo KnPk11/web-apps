@@ -107,7 +107,7 @@ def clean_llm_response(text):
     has_reasoning = (
         "thinking process" in text.lower() or 
         text.lstrip().startswith(("1. **Analyze", "1. Analyze", "**Analyze")) or
-        bool(re.search(r'(?:^|\n)(?:The user is|This is a .*? persona|I need to|The prompt says|Wait,\s|Let\'s see|The constraints:)\b', text, re.IGNORECASE))
+        bool(re.search(r'(?:^|\n)(?:The user is|The user wants|The user is asking|This is a .*? persona|I need to|The prompt says|Wait,\s|Let\'s see|The constraints:)\b', text, re.IGNORECASE))
     )
     if has_reasoning:
         # Priority 1: Check if there is a "Revised Draft:", "Final Draft:", "Draft:", or "Final polish:" block
