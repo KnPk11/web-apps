@@ -111,7 +111,7 @@ class StoryHandler(BaseHTTPRequestHandler):
             if user_is_bot:
                 conditions.append('moderated = 1')
             if date_filter:
-                conditions.append('strftime("%Y-%m-%d", created_at) = ?')
+                conditions.append('strftime("%Y-%m-%d", created_at, "localtime") = ?')
                 params.append(date_filter)
             if ids_val:
                 try:
@@ -177,7 +177,7 @@ class StoryHandler(BaseHTTPRequestHandler):
             conn = get_db()
             cursor = conn.cursor()
             where = "WHERE moderated = 1" if user_is_bot else ""
-            cursor.execute(f'SELECT strftime("%Y-%m-%d", created_at) as date, COUNT(*) as count FROM stories {where} GROUP BY date')
+            cursor.execute(f'SELECT strftime("%Y-%m-%d", created_at, "localtime") as date, COUNT(*) as count FROM stories {where} GROUP BY date')
             rows = cursor.fetchall()
             conn.close()
             data = {r['date']: r['count'] for r in rows if r['date']}
