@@ -15,5 +15,8 @@ __pycache__/
 *.db
 *.pid
 *.bak
+*.bak.*
+backups/
+.backups/
 *.tmp
 dist/
