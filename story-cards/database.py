@@ -22,17 +22,23 @@ def init_db():
         review TEXT,
         upvotes INTEGER DEFAULT 0,
         is_ai INTEGER DEFAULT 0,
+        source_timestamp TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     ''')
     
-    # Check if upvotes and is_ai columns exist on stories
+    # Check if upvotes, is_ai, and source_timestamp columns exist on stories
     cursor.execute("PRAGMA table_info(stories)")
     columns = [row['name'] for row in cursor.fetchall()]
     if 'upvotes' not in columns:
         cursor.execute("ALTER TABLE stories ADD COLUMN upvotes INTEGER DEFAULT 0")
     if 'is_ai' not in columns:
         cursor.execute("ALTER TABLE stories ADD COLUMN is_ai INTEGER DEFAULT 0")
+    if 'source_timestamp' not in columns:
+        cursor.execute("ALTER TABLE stories ADD COLUMN source_timestamp TEXT")
+
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_stories_nickname ON stories (nickname)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_stories_source_ts ON stories (source_timestamp)")
     
     # Comments table
     cursor.execute('''

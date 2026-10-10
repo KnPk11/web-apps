@@ -146,24 +146,71 @@ def normalise_title(text: str) -> str:
     cleaned = re.sub(r'[^\w\s]', '', text.lower())
     return ' '.join(cleaned.split())
 
-def is_story_duplicate(conn, title: str, full_content: str) -> bool:
+def is_story_duplicate(conn, title: str, full_content: str, author: str = None, source_timestamp: str = None) -> bool:
     """
     Robust multi-layer duplicate detection against existing database stories:
-    1. Exact & normalised fuzzy title matching (SequenceMatcher ratio >= 0.75).
-    2. Title substring matching (title appearing within existing story or vice versa).
-    3. Content snippet & opening sentence match.
-    4. Significant vocabulary/word overlap (Jaccard similarity >= 0.55 on words >= 4 chars).
-    5. Early content sequence similarity (SequenceMatcher ratio >= 0.65 on first 500 chars).
+    0. Exact poster username + source timestamp match (instant indexed check across ALL stories).
+    1. Poster username check: if this author has previously posted in the database, verify if any
+       of their stories share title, opening sentences, or high similarity (all-time, no LIMIT).
+    2. Global title prefix match across ALL database stories (all-time, no LIMIT).
+    3. Normalised fuzzy title matching, substring containment, opening sentence match.
+    4. Vocabulary Jaccard similarity and sequence similarity across expanded history (1000 stories).
     """
     if not full_content:
         return False
 
-    title_clean = title.strip() if title else ""
-    norm_candidate_title = normalise_title(title_clean)
-    candidate_words = set(re.findall(r'\b[a-zA-Z]{4,}\b', full_content.lower()))
-
     cur = conn.cursor()
-    existing_stories = cur.execute("SELECT id, content FROM stories ORDER BY id DESC LIMIT 100").fetchall()
+
+    # Layer 0: Exact poster username + source timestamp match across ALL stories
+    if author and source_timestamp:
+        cur.execute("PRAGMA table_info(stories)")
+        cols = [r['name'] for r in cur.fetchall()]
+        if 'source_timestamp' in cols:
+            row = cur.execute(
+                "SELECT id FROM stories WHERE (nickname = ? OR nickname = ?) AND source_timestamp = ? LIMIT 1",
+                (author, author[:25], source_timestamp)
+            ).fetchone()
+            if row:
+                return True
+
+    # Layer 1: Same poster username history check (all-time, no LIMIT)
+    if author and author not in FUNNY_NICKNAMES and author.lower() != 'anon':
+        author_stories = cur.execute(
+            "SELECT id, content FROM stories WHERE nickname = ? OR nickname = ? ORDER BY id DESC",
+            (author, author[:25])
+        ).fetchall()
+        for sid, scontent in author_stories:
+            if not scontent:
+                continue
+            lines = [l.strip() for l in scontent.split('\n') if l.strip()]
+            ext_title = lines[0] if lines else ""
+            if normalise_title(title) and normalise_title(title) == normalise_title(ext_title):
+                return True
+            if len(full_content) >= 50 and (full_content[:80].lower() in scontent.lower() or scontent[:80].lower() in full_content.lower()):
+                return True
+            cand_w = set(re.findall(r'\b[a-zA-Z]{4,}\b', full_content.lower()))
+            ext_w = set(re.findall(r'\b[a-zA-Z]{4,}\b', scontent.lower()))
+            if cand_w and ext_w:
+                overlap = len(cand_w & ext_w) / max(len(cand_w | ext_w), 1)
+                if overlap >= 0.40:
+                    return True
+
+    title_clean = title.strip() if title else ""
+    first_line_clean = title_clean.split('\n')[0].strip()
+    norm_candidate_title = normalise_title(first_line_clean)
+
+    # Layer 2: Global title prefix match across entire database (all-time, no LIMIT)
+    if norm_candidate_title and len(norm_candidate_title) >= 12:
+        exact_match = cur.execute(
+            "SELECT id FROM stories WHERE content LIKE ? LIMIT 1",
+            (f"{first_line_clean}%",)
+        ).fetchone()
+        if exact_match:
+            return True
+
+    # Layer 3 to 5: Broader sequence and fuzzy matching across recent 1000 stories (expanded from 100)
+    candidate_words = set(re.findall(r'\b[a-zA-Z]{4,}\b', full_content.lower()))
+    existing_stories = cur.execute("SELECT id, content FROM stories ORDER BY id DESC LIMIT 1000").fetchall()
 
     for sid, scontent in existing_stories:
         if not scontent:
@@ -173,33 +220,33 @@ def is_story_duplicate(conn, title: str, full_content: str) -> bool:
         existing_title = lines[0] if lines else ""
         norm_existing_title = normalise_title(existing_title)
 
-        # Layer 1: Title match (exact or fuzzy)
+        # Title match (exact or fuzzy)
         if norm_candidate_title and norm_existing_title:
             if norm_candidate_title == norm_existing_title:
                 return True
             if SequenceMatcher(None, norm_candidate_title, norm_existing_title).ratio() >= 0.75:
                 return True
 
-        # Layer 2: Title substring containment (for meaningful titles >= 15 chars)
-        if len(title_clean) >= 15 and title_clean.lower() in scontent.lower():
+        # Title substring containment (for meaningful titles >= 15 chars)
+        if len(first_line_clean) >= 15 and first_line_clean.lower() in scontent.lower():
             return True
         if len(existing_title) >= 15 and existing_title.lower() in full_content.lower():
             return True
 
-        # Layer 3: Opening text match
+        # Opening text match
         if len(full_content) >= 60 and full_content[:60].lower() in scontent.lower():
             return True
         if len(scontent) >= 60 and scontent[:60].lower() in full_content.lower():
             return True
 
-        # Layer 4: Word overlap (Jaccard similarity on 4+ letter words)
+        # Word overlap (Jaccard similarity on 4+ letter words)
         existing_words = set(re.findall(r'\b[a-zA-Z]{4,}\b', scontent.lower()))
         if candidate_words and existing_words:
             overlap = len(candidate_words & existing_words) / max(len(candidate_words | existing_words), 1)
             if overlap >= 0.55:
                 return True
 
-        # Layer 5: Sequence similarity on the first 500 characters
+        # Sequence similarity on the first 500 characters
         content_sim = SequenceMatcher(None, full_content[:500].lower(), scontent[:500].lower()).ratio()
         if content_sim >= 0.65:
             return True
@@ -344,6 +391,11 @@ def fetch_reddit_story(target_category="finance"):
                     if author.lower() in ['automoderator', 'reddit', 'deleted']:
                         author = random.choice(FUNNY_NICKNAMES)
 
+                    published_el = entry.find('atom:published', ns)
+                    if published_el is None or not published_el.text:
+                        published_el = entry.find('atom:updated', ns)
+                    source_timestamp = published_el.text.strip() if published_el is not None and published_el.text else ""
+
                     content_el = entry.find('atom:content', ns)
                     raw_content = content_el.text if content_el is not None else ""
                     body = clean_reddit_text(raw_content)
@@ -373,14 +425,14 @@ def fetch_reddit_story(target_category="finance"):
                         else:
                             full_content = truncated.rstrip() + "..."
 
-                    # Check duplicate
-                    if is_story_duplicate(conn, title, full_content):
-                        print(f"  Skipping duplicate: '{title[:50]}...'")
+                    # Check duplicate using poster username and source timestamp
+                    if is_story_duplicate(conn, title, full_content, author=author, source_timestamp=source_timestamp):
+                        print(f"  Skipping duplicate ({author} @ {source_timestamp}): '{title[:50]}...'")
                         continue
 
                     conn.close()
                     print(f"Successfully fetched Reddit story from r/{sub} ({feed_type}) by @{author} ({len(full_content)} chars)")
-                    return author[:25], full_content
+                    return author[:25], full_content, source_timestamp
 
             except urllib.error.HTTPError as e:
                 print(f"  HTTP error from r/{sub} ({feed_type}): {e.code} ({e.reason})")
@@ -393,7 +445,7 @@ def fetch_reddit_story(target_category="finance"):
                 print(f"  Error fetching r/{sub} ({feed_type}): {e}")
 
     conn.close()
-    return None, None
+    return None, None, None
 
 def generate_ai_story(category="finance"):
     """Fallback: Generate an original, dynamic story via NVIDIA LLM adhering to 1/3 split."""
@@ -463,14 +515,14 @@ def generate_ai_story(category="finance"):
 
     return None, None
 
-def save_story(nickname, content, is_ai=0):
+def save_story(nickname, content, is_ai=0, source_timestamp=None):
     """Save the story to stories.db with moderated=0."""
     conn = get_db()
 
     # Secondary safeguard: prevent saving duplicate stories
     lines = [l.strip() for l in content.split('\n') if l.strip()]
     title = lines[0] if lines else ""
-    if is_story_duplicate(conn, title, content):
+    if is_story_duplicate(conn, title, content, author=nickname, source_timestamp=source_timestamp):
         print(f"Refusing to save duplicate story: '{title[:50]}...'")
         conn.close()
         return None
@@ -478,21 +530,26 @@ def save_story(nickname, content, is_ai=0):
     cur = conn.cursor()
     cur.execute("PRAGMA table_info(stories)")
     cols = [r['name'] for r in cur.fetchall()]
+
+    insert_cols = ['nickname', 'content', 'moderated']
+    insert_vals = [nickname, content, 0]
+
     if 'is_ai' in cols:
-        cur.execute("""
-            INSERT INTO stories (nickname, content, moderated, is_ai)
-            VALUES (?, ?, 0, ?)
-        """, (nickname, content, 1 if is_ai else 0))
-    else:
-        cur.execute("""
-            INSERT INTO stories (nickname, content, moderated)
-            VALUES (?, ?, 0)
-        """, (nickname, content))
+        insert_cols.append('is_ai')
+        insert_vals.append(1 if is_ai else 0)
+    if 'source_timestamp' in cols:
+        insert_cols.append('source_timestamp')
+        insert_vals.append(source_timestamp)
+
+    placeholders = ', '.join(['?'] * len(insert_cols))
+    col_str = ', '.join(insert_cols)
+    cur.execute(f"INSERT INTO stories ({col_str}) VALUES ({placeholders})", insert_vals)
     inserted_id = cur.lastrowid
     conn.commit()
     conn.close()
     flag_str = " [AI-generated]" if is_ai else ""
-    print(f"Saved story #{inserted_id} by @{nickname}{flag_str} to {DB_PATH} with moderated=0")
+    ts_str = f" [source_ts: {source_timestamp}]" if source_timestamp else ""
+    print(f"Saved story #{inserted_id} by @{nickname}{flag_str}{ts_str} to {DB_PATH} with moderated=0")
     return inserted_id
 
 def clean_ai_comment(raw: str) -> str:
@@ -635,10 +692,11 @@ def main():
 
     # 1. Try fetching a real story from Reddit adhering to target category (unless forced AI)
     is_ai = 0
+    source_ts = None
     if not force_ai:
-        nickname, content = fetch_reddit_story(target_category=category)
+        nickname, content, source_ts = fetch_reddit_story(target_category=category)
     else:
-        nickname, content = None, None
+        nickname, content, source_ts = None, None, None
 
     # 2. If Reddit was blocked or unavailable or no matching story passed filter, fall back to AI generation
     if not content:
@@ -648,10 +706,11 @@ def main():
             print(f"Reddit fetch yielded no qualifying stories; falling back to dynamic AI generation ({category})...")
         nickname, content = generate_ai_story(category=category)
         is_ai = 1
+        source_ts = None
 
     # 3. Save to database if we have content
     if content and nickname:
-        story_id = save_story(nickname, content, is_ai=is_ai)
+        story_id = save_story(nickname, content, is_ai=is_ai, source_timestamp=source_ts)
         if story_id:
             print(f"=== Successfully processed story #{story_id} ===")
             # Possibly add AI comments to the new story
