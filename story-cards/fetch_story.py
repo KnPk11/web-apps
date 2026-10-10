@@ -463,7 +463,7 @@ def generate_ai_story(category="finance"):
 
     return None, None
 
-def save_story(nickname, content):
+def save_story(nickname, content, is_ai=0):
     """Save the story to stories.db with moderated=0."""
     conn = get_db()
 
@@ -476,14 +476,23 @@ def save_story(nickname, content):
         return None
 
     cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO stories (nickname, content, moderated)
-        VALUES (?, ?, 0)
-    """, (nickname, content))
+    cur.execute("PRAGMA table_info(stories)")
+    cols = [r['name'] for r in cur.fetchall()]
+    if 'is_ai' in cols:
+        cur.execute("""
+            INSERT INTO stories (nickname, content, moderated, is_ai)
+            VALUES (?, ?, 0, ?)
+        """, (nickname, content, 1 if is_ai else 0))
+    else:
+        cur.execute("""
+            INSERT INTO stories (nickname, content, moderated)
+            VALUES (?, ?, 0)
+        """, (nickname, content))
     inserted_id = cur.lastrowid
     conn.commit()
     conn.close()
-    print(f"Saved story #{inserted_id} by @{nickname} to {DB_PATH} with moderated=0")
+    flag_str = " [AI-generated]" if is_ai else ""
+    print(f"Saved story #{inserted_id} by @{nickname}{flag_str} to {DB_PATH} with moderated=0")
     return inserted_id
 
 def clean_ai_comment(raw: str) -> str:
@@ -625,6 +634,7 @@ def main():
         print("Forcing AI-generated story this cycle (1/4 chance)")
 
     # 1. Try fetching a real story from Reddit adhering to target category (unless forced AI)
+    is_ai = 0
     if not force_ai:
         nickname, content = fetch_reddit_story(target_category=category)
     else:
@@ -637,10 +647,11 @@ def main():
         else:
             print(f"Reddit fetch yielded no qualifying stories; falling back to dynamic AI generation ({category})...")
         nickname, content = generate_ai_story(category=category)
+        is_ai = 1
 
     # 3. Save to database if we have content
     if content and nickname:
-        story_id = save_story(nickname, content)
+        story_id = save_story(nickname, content, is_ai=is_ai)
         if story_id:
             print(f"=== Successfully processed story #{story_id} ===")
             # Possibly add AI comments to the new story

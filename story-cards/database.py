@@ -21,15 +21,18 @@ def init_db():
         moderated INTEGER DEFAULT 0, -- 0: pending, 1: approved, -1: rejected
         review TEXT,
         upvotes INTEGER DEFAULT 0,
+        is_ai INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     ''')
     
-    # Check if upvotes column exists on stories
+    # Check if upvotes and is_ai columns exist on stories
     cursor.execute("PRAGMA table_info(stories)")
     columns = [row['name'] for row in cursor.fetchall()]
     if 'upvotes' not in columns:
         cursor.execute("ALTER TABLE stories ADD COLUMN upvotes INTEGER DEFAULT 0")
+    if 'is_ai' not in columns:
+        cursor.execute("ALTER TABLE stories ADD COLUMN is_ai INTEGER DEFAULT 0")
     
     # Comments table
     cursor.execute('''
