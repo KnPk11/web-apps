@@ -288,7 +288,7 @@ def is_candidate_story_valid(title: str, body: str, subreddit: str, category: st
     return True, "Valid"
 
 def fetch_reddit_story(target_category="finance"):
-    """Attempt to fetch a narrative story from Reddit RSS, respecting the 1/3 split."""
+    """Attempt to fetch a narrative story from Reddit RSS, favouring the latest entries while respecting the 1/3 split."""
     fin_subs = list(FINANCIAL_SUBREDDITS)
     random.shuffle(fin_subs)
     tech_subs = list(TECH_SUBREDDITS)
@@ -296,7 +296,7 @@ def fetch_reddit_story(target_category="finance"):
     gen_subs = list(GENERAL_SUBREDDITS)
     random.shuffle(gen_subs)
 
-    # Prioritize subreddits based on target category
+    # Prioritise subreddits based on target category
     if target_category == "finance":
         subreddits = [(s, "finance") for s in fin_subs] + [(s, "tech") for s in tech_subs] + [(s, "lifestory") for s in gen_subs]
     elif target_category == "tech":
@@ -306,90 +306,91 @@ def fetch_reddit_story(target_category="finance"):
 
     conn = get_db()
 
-    for idx, (sub, cat) in enumerate(subreddits):
-        if idx > 0:
-            time.sleep(2.0)
+    # Favour the newest submissions first ('new'), falling back to 'hot' if no qualifying stories are found
+    feed_types = ["new", "hot"]
 
-        url = f"https://www.reddit.com/r/{sub}/hot.rss"
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Checking r/{sub} ({url})...")
-        try:
-            req = urllib.request.Request(url, headers={'User-Agent': USER_AGENT})
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                xml_data = resp.read()
+    for feed_type in feed_types:
+        for idx, (sub, cat) in enumerate(subreddits):
+            if idx > 0 or feed_type != feed_types[0]:
+                time.sleep(2.0)
 
-            root = ET.fromstring(xml_data)
-            ns = {'atom': 'http://www.w3.org/2005/Atom'}
-            entries = root.findall('atom:entry', ns)
+            url = f"https://www.reddit.com/r/{sub}/{feed_type}.rss"
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Checking r/{sub} ({url})...")
+            try:
+                req = urllib.request.Request(url, headers={'User-Agent': USER_AGENT})
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    xml_data = resp.read()
 
-            # Sort entries by disaster/loss keywords depending on category
-            if cat == "finance":
-                def rate_entry(e):
-                    t_el = e.find('atom:title', ns)
-                    t_txt = t_el.text.lower() if t_el is not None else ""
-                    c_el = e.find('atom:content', ns)
-                    c_txt = c_el.text.lower() if c_el is not None else ""
-                    return sum(1 for kw in FINANCIAL_LOSS_KEYWORDS if kw in t_txt or kw in c_txt[:600])
-                entries.sort(key=rate_entry, reverse=True)
-            elif cat == "tech":
-                def rate_entry(e):
-                    t_el = e.find('atom:title', ns)
-                    t_txt = t_el.text.lower() if t_el is not None else ""
-                    c_el = e.find('atom:content', ns)
-                    c_txt = c_el.text.lower() if c_el is not None else ""
-                    return sum(1 for kw in TECH_FAIL_KEYWORDS if kw in t_txt or kw in c_txt[:600])
-                entries.sort(key=rate_entry, reverse=True)
+                root = ET.fromstring(xml_data)
+                ns = {'atom': 'http://www.w3.org/2005/Atom'}
+                entries = root.findall('atom:entry', ns)
 
-            for entry in entries:
-                title_el = entry.find('atom:title', ns)
-                title = title_el.text.strip() if title_el is not None else ""
+                # Prioritise latest entries chronologically by published/updated timestamp
+                def entry_timestamp(e):
+                    for tag in ('atom:published', 'atom:updated'):
+                        el = e.find(tag, ns)
+                        if el is not None and el.text:
+                            return el.text.strip()
+                    return ""
 
-                author_el = entry.find('atom:author/atom:name', ns)
-                author = author_el.text.replace('/u/', '').strip() if author_el is not None else "anon"
-                if author.lower() in ['automoderator', 'reddit', 'deleted']:
-                    author = random.choice(FUNNY_NICKNAMES)
+                entries.sort(key=entry_timestamp, reverse=True)
 
-                content_el = entry.find('atom:content', ns)
-                raw_content = content_el.text if content_el is not None else ""
-                body = clean_reddit_text(raw_content)
+                for entry in entries:
+                    title_el = entry.find('atom:title', ns)
+                    title = title_el.text.strip() if title_el is not None else ""
 
-                # Skip empty or removed content
-                if not body or any(k in body.lower() for k in ['[removed]', '[deleted]']):
-                    continue
+                    author_el = entry.find('atom:author/atom:name', ns)
+                    author = author_el.text.replace('/u/', '').strip() if author_el is not None else "anon"
+                    if author.lower() in ['automoderator', 'reddit', 'deleted']:
+                        author = random.choice(FUNNY_NICKNAMES)
 
-                # Run screening filter
-                is_valid, reject_reason = is_candidate_story_valid(title, body, sub, category=cat)
-                if not is_valid:
-                    continue
+                    content_el = entry.find('atom:content', ns)
+                    raw_content = content_el.text if content_el is not None else ""
+                    body = clean_reddit_text(raw_content)
 
-                full_content = f"{title}\n\n{body}".strip()
-                length = len(full_content)
+                    # Skip empty or removed content
+                    if not body or any(k in body.lower() for k in ['[removed]', '[deleted]']):
+                        continue
 
-                # Ideal length check (250 - 3000 chars)
-                if length < 250:
-                    continue
+                    # Run screening filter
+                    is_valid, reject_reason = is_candidate_story_valid(title, body, sub, category=cat)
+                    if not is_valid:
+                        continue
 
-                if length > 3000:
-                    # Clean truncation at last sentence before 2960 chars
-                    truncated = full_content[:2960]
-                    last_period = max(truncated.rfind('.'), truncated.rfind('!'), truncated.rfind('?'))
-                    if last_period > 1200:
-                        full_content = truncated[:last_period + 1] + " [Continued...]"
-                    else:
-                        full_content = truncated.rstrip() + "..."
+                    full_content = f"{title}\n\n{body}".strip()
+                    length = len(full_content)
 
-                # Check duplicate
-                if is_story_duplicate(conn, title, full_content):
-                    print(f"  Skipping duplicate: '{title[:50]}...'")
-                    continue
+                    # Ideal length check (250 - 3000 chars)
+                    if length < 250:
+                        continue
 
-                conn.close()
-                print(f"Successfully fetched Reddit story from r/{sub} by @{author} ({len(full_content)} chars)")
-                return author[:25], full_content
+                    if length > 3000:
+                        # Clean truncation at last sentence before 2960 chars
+                        truncated = full_content[:2960]
+                        last_period = max(truncated.rfind('.'), truncated.rfind('!'), truncated.rfind('?'))
+                        if last_period > 1200:
+                            full_content = truncated[:last_period + 1] + " [Continued...]"
+                        else:
+                            full_content = truncated.rstrip() + "..."
 
-        except urllib.error.HTTPError as e:
-            print(f"  HTTP error from r/{sub}: {e.code} ({e.reason})")
-        except Exception as e:
-            print(f"  Error fetching r/{sub}: {e}")
+                    # Check duplicate
+                    if is_story_duplicate(conn, title, full_content):
+                        print(f"  Skipping duplicate: '{title[:50]}...'")
+                        continue
+
+                    conn.close()
+                    print(f"Successfully fetched Reddit story from r/{sub} ({feed_type}) by @{author} ({len(full_content)} chars)")
+                    return author[:25], full_content
+
+            except urllib.error.HTTPError as e:
+                print(f"  HTTP error from r/{sub} ({feed_type}): {e.code} ({e.reason})")
+                if e.code == 429:
+                    retry_reset = e.headers.get('x-ratelimit-reset') or e.headers.get('Retry-After')
+                    wait_time = min(float(retry_reset), 30.0) if (retry_reset and retry_reset.replace('.', '', 1).isdigit()) else 10.0
+                    print(f"  Reddit rate limit hit. Pausing for {wait_time:.1f}s...")
+                    time.sleep(wait_time)
+            except Exception as e:
+                print(f"  Error fetching r/{sub} ({feed_type}): {e}")
 
     conn.close()
     return None, None
