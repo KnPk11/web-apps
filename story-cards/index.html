@@ -638,7 +638,7 @@
             .feed-tabs-bar {
                 margin-bottom: 10px;
                 gap: 6px;
-                flex-wrap: nowrap;
+                flex-wrap: nowrap !important;
                 justify-content: space-between;
                 align-items: center;
                 width: 100%;
@@ -1012,7 +1012,7 @@
             align-items: center;
             gap: 10px;
             margin-bottom: 15px;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
             flex-shrink: 0;
         }
 
@@ -1070,7 +1070,7 @@
             display: flex;
             gap: 8px;
             align-items: center;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
         }
 
         .feed-tools .toggle-extras-btn {
@@ -1309,7 +1309,7 @@
             <div class="feed-tabs">
                 <button class="feed-tab active" id="tab-latest" onclick="setFeedTab('latest')">🕒 Latest</button>
                 <button class="feed-tab" id="tab-top" onclick="setFeedTab('top')">▲ Top<span class="desktop-tab-label"> Rated</span></button>
-                <button class="feed-tab" id="tab-saved" onclick="setFeedTab('saved')">🔖 Saved <span class="tab-count" id="saved-count">0</span></button>
+                <button class="feed-tab" id="tab-saved" onclick="setFeedTab('saved')">🔖 Saved</button>
             </div>
             <div class="feed-tools">
                 <button class="toggle-extras-btn" id="calendar-btn" onclick="toggleCalendar()" style="margin-bottom: 0;">
