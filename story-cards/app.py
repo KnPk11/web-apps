@@ -12,6 +12,29 @@ from database import get_db, init_db
 PORT = 33363
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'stories.db')
 
+def get_db_stats():
+    total_stories = 0
+    db_size_mb = 0.0
+    if os.path.exists(DB_PATH):
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('SELECT COUNT(*) as total FROM stories')
+            row = cursor.fetchone()
+            if row:
+                total_stories = row['total']
+            conn.close()
+        except Exception:
+            pass
+
+        total_bytes = os.path.getsize(DB_PATH)
+        for extra in ('-wal', '-shm'):
+            extra_p = DB_PATH + extra
+            if os.path.exists(extra_p):
+                total_bytes += os.path.getsize(extra_p)
+        db_size_mb = round(total_bytes / (1024 * 1024), 1)
+    return total_stories, db_size_mb
+
 def is_lan_ip(ip_str):
     try:
         ip = ipaddress.ip_address(ip_str)
@@ -181,6 +204,23 @@ class StoryHandler(BaseHTTPRequestHandler):
             rows = cursor.fetchall()
             conn.close()
             data = {r['date']: r['count'] for r in rows if r['date']}
+
+            total_stories, db_size_mb = get_db_stats()
+
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.send_header('X-Total-Stories', str(total_stories))
+            self.send_header('X-Db-Size-Mb', f"{db_size_mb:.1f}")
+            self.send_header('Access-Control-Expose-Headers', 'X-Total-Stories, X-Db-Size-Mb')
+            self.end_headers()
+            self.wfile.write(json.dumps(data).encode())
+
+        elif url.path == '/api/stats':
+            total_stories, db_size_mb = get_db_stats()
+            data = {
+                'total_stories': total_stories,
+                'db_size_mb': db_size_mb
+            }
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()

@@ -656,23 +656,38 @@
                 flex-shrink: 0;
                 display: flex;
                 align-items: center;
+                height: 29px;
+                box-sizing: border-box;
+                border-radius: 10px;
             }
             .feed-tab {
                 padding: 4px 6px;
                 font-size: 0.78em;
                 white-space: nowrap;
+                height: 100%;
+                box-sizing: border-box;
             }
             .feed-tools {
                 display: flex;
                 align-items: center;
                 flex-shrink: 0;
             }
-            .toggle-extras-btn {
-                padding: 4px 7px;
+            .toggle-extras-btn,
+            .feed-tools .toggle-extras-btn {
+                padding: 0 8px;
                 font-size: 0.78em;
                 white-space: nowrap;
                 gap: 4px;
                 margin-bottom: 0;
+                height: 29px;
+                box-sizing: border-box;
+                border-radius: 10px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .cal-stats {
+                font-size: 0.74em;
             }
             .feed-container {
                 gap: 16px;
@@ -888,6 +903,22 @@
             background: rgba(34, 211, 238, 0.1);
         }
 
+        .cal-stats {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            color: var(--text-dim);
+            font-size: 0.82em;
+            text-align: center;
+            white-space: nowrap;
+            user-select: none;
+        }
+
+        .cal-stats-val {
+            color: var(--text);
+            font-weight: 700;
+        }
+
         .cal-legend {
             display: flex;
             align-items: center;
@@ -992,6 +1023,9 @@
             padding: 4px;
             border-radius: 12px;
             border: 1px solid rgba(255, 255, 255, 0.08);
+            height: 38px;
+            box-sizing: border-box;
+            align-items: center;
         }
 
         .feed-tab {
@@ -1004,9 +1038,11 @@
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
-            display: flex;
+            display: inline-flex;
             align-items: center;
             gap: 5px;
+            height: 100%;
+            box-sizing: border-box;
         }
 
         .feed-tab:hover {
@@ -1035,6 +1071,20 @@
             gap: 8px;
             align-items: center;
             flex-wrap: wrap;
+        }
+
+        .feed-tools .toggle-extras-btn {
+            height: 38px;
+            box-sizing: border-box;
+            padding: 0 14px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin-bottom: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
         }
 
         /* Story Card Action Buttons (Upvote & Bookmark) */
@@ -1268,6 +1318,9 @@
                     <div class="cal-quick-actions">
                         <button class="cal-quick-btn" onclick="jumpToLatest()">Latest Stories</button>
                         <button class="cal-quick-btn" onclick="clearDateFilter()" id="cal-clear-btn" style="display: none;">Show All</button>
+                    </div>
+                    <div class="cal-stats" id="cal-stats" title="All-time story count and SQLite database storage size">
+                        <span class="cal-stats-val" id="cal-total-stories">--</span> stories &bull; <span class="cal-stats-val" id="cal-db-size">--</span> MB
                     </div>
                     <div class="cal-legend">
                         <span class="legend-badge">●</span> Days with stories
@@ -1637,10 +1690,41 @@
             return calendarCountsCache;
         }
 
+        function updateCalendarStats(totalStories, dbSizeMb) {
+            const totalEl = document.getElementById('cal-total-stories');
+            const sizeEl = document.getElementById('cal-db-size');
+            if (totalEl && totalStories !== undefined && totalStories !== null) {
+                totalEl.textContent = Number(totalStories).toLocaleString();
+            }
+            if (sizeEl && dbSizeMb !== undefined && dbSizeMb !== null) {
+                const num = parseFloat(dbSizeMb);
+                sizeEl.textContent = isNaN(num) ? '--' : num.toFixed(1);
+            }
+        }
+
+        async function fetchCalendarStats() {
+            try {
+                const res = await fetch('/api/stats');
+                if (res.ok) {
+                    const data = await res.json();
+                    updateCalendarStats(data.total_stories, data.db_size_mb);
+                }
+            } catch (e) {
+                console.error('Failed to fetch calendar stats:', e);
+            }
+        }
+
         async function fetchCalendarDates() {
             try {
                 const res = await fetch('/api/calendar-dates');
                 if (res.ok) {
+                    const totalStoriesHdr = res.headers.get('X-Total-Stories');
+                    const dbSizeHdr = res.headers.get('X-Db-Size-Mb');
+                    if (totalStoriesHdr !== null && dbSizeHdr !== null) {
+                        updateCalendarStats(totalStoriesHdr, dbSizeHdr);
+                    } else {
+                        fetchCalendarStats();
+                    }
                     calendarCountsCache = await res.json();
                     renderCalendar();
                 }
@@ -2477,6 +2561,7 @@
         updateSavedCount();
         syncBookmarksFromServer();
         fetchCalendarDates();
+        fetchCalendarStats();
         setupReelObserver();
         setupSmoothWheelScroll();
         loadStoriesBatch({ reset: true }).then(() => {
