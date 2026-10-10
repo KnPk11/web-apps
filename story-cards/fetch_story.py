@@ -617,8 +617,8 @@ def maybe_add_ai_comments(story_id: int, story_content: str, category: str):
 def main():
     print(f"=== StoryCards Fetcher Started [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ===")
     
-    # 1/4 chance to skip Reddit and go straight to AI-generated story (mimicking human style)
-    force_ai = random.random() < 0.25
+    # 1/8 chance to skip Reddit and go straight to AI-generated story (mimicking human style, halved from 1/4)
+    force_ai = random.random() < 0.125
     
     # 1/3 finance, 1/3 tech & work fails, 1/3 life stories
     roll = random.random()
@@ -631,7 +631,7 @@ def main():
 
     print(f"Target story category this run: {category.upper()} (1/3 finance, 1/3 tech/work fails, 1/3 life stories)")
     if force_ai:
-        print("Forcing AI-generated story this cycle (1/4 chance)")
+        print("Forcing AI-generated story this cycle (1/8 chance)")
 
     # 1. Try fetching a real story from Reddit adhering to target category (unless forced AI)
     is_ai = 0
