@@ -441,6 +441,38 @@
     const historyStatsGrid = document.getElementById('historyStatsGrid');
     const sampleResolutionInfo = document.getElementById('sampleResolutionInfo');
 
+    // CPU trace only. A 5-sample triangular average (~50s at the 10s interval)
+    // takes the needle off one-sample spikes so the hour is readable.
+    // Stat boxes stay on the raw samples.
+    const CPU_SMOOTH_RADIUS = 2;
+
+    function smoothedCpuAt(points, index) {
+      let acc = 0;
+      let wsum = 0;
+      for (let d = -CPU_SMOOTH_RADIUS; d <= CPU_SMOOTH_RADIUS; d++) {
+        const j = index + d;
+        if (j < 0 || j >= points.length) continue;
+        const w = CPU_SMOOTH_RADIUS + 1 - Math.abs(d);
+        acc += (points[j].cpu ?? 0) * w;
+        wsum += w;
+      }
+      return wsum ? Math.round((acc / wsum) * 10) / 10 : 0;
+    }
+
+    function cpuDisplayMap(points) {
+      const byTime = new Map();
+      for (let i = 0; i < points.length; i++) {
+        byTime.set(points[i].t, smoothedCpuAt(points, i));
+      }
+      return byTime;
+    }
+
+    function cpuTipParts(point) {
+      const index = historyPoints.indexOf(point);
+      const drawn = index >= 0 ? smoothedCpuAt(historyPoints, index) : point.cpu;
+      return { drawn, raw: point.cpu };
+    }
+
     const METRIC_CONFIG = {
       cpu: {
         label: 'CPU',
@@ -799,6 +831,11 @@
       const activeMetrics = currentMetricView === 'all'
         ? ['disk', 'mem', 'cpu'] // Draw disk & mem first, cpu on top
         : [currentMetricView];
+      const cpuDrawn = activeMetrics.includes('cpu') ? cpuDisplayMap(historyPoints) : null;
+      function chartValue(point, mKey) {
+        if (mKey === 'cpu' && cpuDrawn) return cpuDrawn.get(point.t) ?? point.cpu ?? 0;
+        return point[mKey] ?? 0;
+      }
 
       // Draw each metric line & fill
       activeMetrics.forEach(mKey => {
@@ -816,9 +853,9 @@
         fillGrad.addColorStop(1, `rgba(${conf.colorRgb}, 0.0)`);
 
         ctx.beginPath();
-        ctx.moveTo(getX(pts[0].t), getY(pts[0][mKey] ?? 0));
+        ctx.moveTo(getX(pts[0].t), getY(chartValue(pts[0], mKey)));
         for (let i = 1; i < pts.length; i++) {
-          ctx.lineTo(getX(pts[i].t), getY(pts[i][mKey] ?? 0));
+          ctx.lineTo(getX(pts[i].t), getY(chartValue(pts[i], mKey)));
         }
         ctx.lineTo(getX(pts[pts.length - 1].t), padding.top + graphH);
         ctx.lineTo(getX(pts[0].t), padding.top + graphH);
@@ -833,9 +870,9 @@
         ctx.lineJoin = 'round';
         ctx.lineCap = 'round';
 
-        ctx.moveTo(getX(pts[0].t), getY(pts[0][mKey] ?? 0));
+        ctx.moveTo(getX(pts[0].t), getY(chartValue(pts[0], mKey)));
         for (let i = 1; i < pts.length; i++) {
-          ctx.lineTo(getX(pts[i].t), getY(pts[i][mKey] ?? 0));
+          ctx.lineTo(getX(pts[i].t), getY(chartValue(pts[i], mKey)));
         }
         ctx.stroke();
       });
@@ -859,7 +896,7 @@
         // Highlight Dots on active lines
         activeMetrics.forEach(mKey => {
           const conf = METRIC_CONFIG[mKey];
-          const val = p[mKey] ?? 0;
+          const val = chartValue(p, mKey);
           const hY = getY(val);
 
           // Outer glowing ring
@@ -923,13 +960,18 @@
       const agoStr = secAgo >= 60 ? `${Math.round(secAgo / 60)}m ago` : `${secAgo}s ago`;
 
       let content = `<div class="tip-time">${timeStr} (${agoStr})</div>`;
+      const cpu = cpuTipParts(point);
+      const cpuSample = Math.abs(cpu.drawn - cpu.raw) >= 1
+        ? `<span class="tip-detail">(sample ${cpu.raw}%)</span>`
+        : '';
 
       if (currentMetricView === 'all') {
         content += `
           <div class="tip-row">
             <span class="h-stat-dot dot-cpu"></span>
             <span>CPU:</span>
-            <span class="tip-val">${point.cpu}%</span>
+            <span class="tip-val">${cpu.drawn}%</span>
+            ${cpuSample}
           </div>
           <div class="tip-row">
             <span class="h-stat-dot dot-mem"></span>
@@ -946,9 +988,11 @@
         `;
       } else {
         const conf = METRIC_CONFIG[currentMetricView];
-        const val = point[currentMetricView];
+        const val = currentMetricView === 'cpu' ? cpu.drawn : point[currentMetricView];
         let detail = '';
-        if (currentMetricView === 'mem') {
+        if (currentMetricView === 'cpu' && Math.abs(cpu.drawn - cpu.raw) >= 1) {
+          detail = ` (sample ${cpu.raw}%)`;
+        } else if (currentMetricView === 'mem') {
           detail = ` (${point.memUsed ?? '--'} / ${point.memTotal ?? '--'} GB)`;
         } else if (currentMetricView === 'disk') {
           detail = ` (${point.diskUsed ?? '--'} / ${point.diskTotal ?? '--'} GB)`;
