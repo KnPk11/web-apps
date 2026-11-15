@@ -1,26 +1,58 @@
 #!/usr/bin/env python3
-"""Simple system stats dashboard server with 1-hour historical telemetry."""
+"""System stats dashboard. Samples every 10s and keeps 24 hours."""
 import atexit
 import json
 import os
 import platform
+import re
 import signal
 import sys
 import threading
 import time
 from collections import deque
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import urllib.parse
 import psutil
 
 # Cache path and sampling configuration
 HISTORY_FILE = "/tmp/ocstats_history.json"
 SAMPLE_INTERVAL_SEC = 10
-HISTORY_WINDOW_SEC = 3600
-MAX_POINTS = HISTORY_WINDOW_SEC // SAMPLE_INTERVAL_SEC  # 360 points for 1 hour
+HISTORY_WINDOW_SEC = 24 * 3600
+MAX_POINTS = HISTORY_WINDOW_SEC // SAMPLE_INTERVAL_SEC  # 8640 points for 24 hours
+ALLOWED_HOURS = (1, 3, 6, 12, 24)
+
+# Loopback and virtual bridges would double-count traffic that also crosses the NIC.
+_SKIP_NET_PREFIXES = ("lo", "docker", "veth", "br-", "virbr", "tun", "tap")
+_WHOLE_DISK = re.compile(r"(?:sd[a-z]+|vd[a-z]+|xvd[a-z]+|nvme\d+n\d+|mmcblk\d+)\Z")
+
+
+def _coerce_hours(hours):
+    try:
+        value = int(hours)
+    except (TypeError, ValueError):
+        return 1
+    if value in ALLOWED_HOURS:
+        return value
+    return 1
+
+
+def _temp_label(chip, label, index):
+    label = (label or "").strip()
+    if chip == "coretemp" and label:
+        return label
+    if chip == "acpitz":
+        return "ACPI" if not label else label
+    if chip.startswith("soc_dts") and chip[7:].isdigit():
+        return f"SoC {chip[7:]}"
+    if label and not label.lower().startswith("temp"):
+        return label
+    if label:
+        return f"{chip} {label}"
+    return chip if index == 0 else f"{chip} {index}"
+
 
 class TelemetryCollector(threading.Thread):
-    """Background daemon collecting live CPU readings and 1-hour history."""
+    """Background daemon collecting live CPU readings and 24-hour history."""
 
     def __init__(self, sample_interval=SAMPLE_INTERVAL_SEC, window_sec=HISTORY_WINDOW_SEC, cache_file=HISTORY_FILE):
         super().__init__(daemon=True, name="TelemetryCollector")
@@ -35,10 +67,19 @@ class TelemetryCollector(threading.Thread):
         self._last_history_sample_time = 0
         self._last_save_time = 0
         self._stop_event = threading.Event()
+        self._prev_net = None
+        self._prev_disk = None
 
         # Prime initial comparison points for psutil in this thread
         psutil.cpu_percent(interval=None)
         psutil.cpu_percent(interval=None, percpu=True)
+        primed = time.time()
+        net = self._read_net_bytes()
+        disk = self._read_disk_bytes()
+        if net is not None:
+            self._prev_net = (primed, net[0], net[1])
+        if disk is not None:
+            self._prev_disk = (primed, disk[0], disk[1])
         self._load_cache()
 
     def _load_cache(self):
@@ -109,11 +150,91 @@ class TelemetryCollector(threading.Thread):
         except Exception:
             return 0.0, 0.0, 0.0
 
+    def _read_net_bytes(self):
+        """Sum received and sent bytes on physical interfaces."""
+        try:
+            counters = psutil.net_io_counters(pernic=True) or {}
+        except Exception:
+            return None
+        rx = tx = 0
+        found = False
+        for name, row in counters.items():
+            if name.startswith(_SKIP_NET_PREFIXES):
+                continue
+            rx += row.bytes_recv
+            tx += row.bytes_sent
+            found = True
+        if not found:
+            return None
+        return rx, tx
+
+    def _read_disk_bytes(self):
+        """Sum read and write bytes for whole disks, not partitions or zram."""
+        try:
+            counters = psutil.disk_io_counters(perdisk=True) or {}
+        except Exception:
+            return None
+        read = write = 0
+        found = False
+        for name, row in counters.items():
+            if _WHOLE_DISK.fullmatch(name) is None:
+                continue
+            read += row.read_bytes
+            write += row.write_bytes
+            found = True
+        if not found:
+            return None
+        return read, write
+
+    def _rate(self, prev, current, scale):
+        """Bytes-per-second converted by scale. None until a second sample exists."""
+        if prev is None or current is None:
+            return None, None
+        prev_t, prev_a, prev_b = prev
+        now_t, now_a, now_b = current
+        dt = now_t - prev_t
+        if dt <= 0 or now_a < prev_a or now_b < prev_b:
+            return None, None
+        return round((now_a - prev_a) / dt * scale, 3), round((now_b - prev_b) / dt * scale, 3)
+
+    def _sample_rates(self, now):
+        """Network Mbit/s and disk MB/s since the previous sample."""
+        net = self._read_net_bytes()
+        disk = self._read_disk_bytes()
+        net_in = net_out = disk_read = disk_write = None
+        if net is not None:
+            net_in, net_out = self._rate(self._prev_net, (now, net[0], net[1]), 8 / 1_000_000)
+            self._prev_net = (now, net[0], net[1])
+        if disk is not None:
+            disk_read, disk_write = self._rate(self._prev_disk, (now, disk[0], disk[1]), 1 / 1_000_000)
+            self._prev_disk = (now, disk[0], disk[1])
+        return net_in, net_out, disk_read, disk_write
+
+    def _sample_temps(self):
+        """Current °C for every sensor psutil can see."""
+        try:
+            raw = psutil.sensors_temperatures() or {}
+        except Exception:
+            return {}
+        temps = {}
+        chips = sorted(raw, key=lambda name: (name != "coretemp", name))
+        for chip in chips:
+            for index, entry in enumerate(raw[chip]):
+                if entry.current is None:
+                    continue
+                name = _temp_label(chip, entry.label, index)
+                if name in temps:
+                    name = f"{name} ({chip})"
+                temps[name] = round(float(entry.current), 1)
+        return temps
+
     def _record_history_sample(self, cpu_val):
         """Record a single historical data point."""
-        now_sec = int(time.time())
+        now = time.time()
+        now_sec = int(now)
         mem_pct, mem_used, mem_total = self._sample_mem()
         disk_pct, disk_used, disk_total = self._sample_disk()
+        net_in, net_out, disk_read, disk_write = self._sample_rates(now)
         point = {
             "t": now_sec,
             "cpu": round(float(cpu_val), 1),
@@ -122,7 +243,12 @@ class TelemetryCollector(threading.Thread):
             "memTotal": mem_total,
             "disk": disk_pct,
             "diskUsed": disk_used,
-            "diskTotal": disk_total
+            "diskTotal": disk_total,
+            "netInMbps": net_in,
+            "netOutMbps": net_out,
+            "diskReadMBs": disk_read,
+            "diskWriteMBs": disk_write,
+            "temps": self._sample_temps(),
         }
         with self.lock:
             self.points.append(point)
@@ -170,16 +296,17 @@ class TelemetryCollector(threading.Thread):
         with self.lock:
             return self.live_cpu, list(self.live_per_cpu)
 
-    def get_history(self):
-        """Return telemetry points for the past hour."""
-        now = time.time()
-        cutoff = now - self.window_sec
+    def get_history(self, hours=1):
+        """Return telemetry points for the requested window."""
+        hours = _coerce_hours(hours)
+        cutoff = time.time() - hours * 3600
         with self.lock:
             recent = [p for p in self.points if p["t"] >= cutoff]
             return {
                 "points": recent,
                 "interval": self.sample_interval,
                 "retention": self.window_sec,
+                "hours": hours,
                 "count": len(recent)
             }
 
@@ -271,54 +398,53 @@ def get_stats():
         'timestamp': time.time()
     }
 
-class StatsHandler(SimpleHTTPRequestHandler):
-    def do_HEAD(self):
-        parsed = urllib.parse.urlparse(self.path)
-        path = parsed.path
-        if path in ('/api/stats', '/api/history'):
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-        elif path in ('/', '/dashboard.html'):
-            self.path = '/dashboard.html'
-            return SimpleHTTPRequestHandler.do_HEAD(self)
-        else:
-            self.send_error(404)
+class StatsHandler(BaseHTTPRequestHandler):
+    def _send_json(self, payload):
+        body = json.dumps(payload).encode('utf-8')
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(body)))
+        self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        if self.command != 'HEAD':
+            self.wfile.write(body)
 
-    def do_GET(self):
+    def _send_dashboard(self):
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dashboard.html')
+        with open(path, 'rb') as handle:
+            body = handle.read()
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/html; charset=utf-8')
+        self.send_header('Content-Length', str(len(body)))
+        self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+        self.end_headers()
+        if self.command != 'HEAD':
+            self.wfile.write(body)
+
+    def _dispatch(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
         query = urllib.parse.parse_qs(parsed.query)
-
         if path == '/api/stats':
             stats = get_stats()
             if 'history' in query and query['history'][0] in ('1', 'true', 'yes'):
-                stats['history'] = telemetry_collector.get_history()
-            body = json.dumps(stats).encode('utf-8')
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Content-Length', str(len(body)))
-            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            self.wfile.write(body)
+                hours = query.get('hours', ['1'])[0]
+                stats['history'] = telemetry_collector.get_history(hours)
+            self._send_json(stats)
         elif path == '/api/history':
-            history_data = telemetry_collector.get_history()
-            body = json.dumps(history_data).encode('utf-8')
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Content-Length', str(len(body)))
-            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            self.wfile.write(body)
+            hours = query.get('hours', ['1'])[0]
+            self._send_json(telemetry_collector.get_history(hours))
         elif path in ('/', '/dashboard.html'):
-            self.path = '/dashboard.html'
-            return SimpleHTTPRequestHandler.do_GET(self)
+            self._send_dashboard()
         else:
             self.send_error(404)
+
+    def do_HEAD(self):
+        self._dispatch()
+
+    def do_GET(self):
+        self._dispatch()
 
     def log_message(self, format, *args):
         pass  # Suppress logging
@@ -335,7 +461,7 @@ if __name__ == '__main__':
     signal.signal(signal.SIGTERM, shutdown_handler)
     signal.signal(signal.SIGINT, shutdown_handler)
 
-    server = HTTPServer(('0.0.0.0', port), StatsHandler)
+    server = ThreadingHTTPServer(('0.0.0.0', port), StatsHandler)
     print(f'Dashboard running at http://0.0.0.0:{port}')
     try:
         server.serve_forever()

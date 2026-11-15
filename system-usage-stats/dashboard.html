@@ -131,9 +131,31 @@
     .core-fill.yellow { background: #eab308; }
     .core-fill.red { background: #ef4444; }
 
-    /* Historical Telemetry Section */
-    .history-card {
+    .range-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .range-bar .card-title { margin-bottom: 0; }
+
+    .history-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
       margin-bottom: 24px;
+      align-items: start;
+    }
+    @media (min-width: 1200px) {
+      .history-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+    .history-card {
+      margin-bottom: 0;
+      min-width: 0;
       background: #1a1a1a;
       border-radius: 12px;
       padding: 20px;
@@ -166,6 +188,7 @@
       border-radius: 8px;
       padding: 3px;
       gap: 3px;
+      flex-wrap: wrap;
     }
     .tab-btn {
       background: transparent;
@@ -218,10 +241,15 @@
       height: 7px;
       border-radius: 50%;
       display: inline-block;
+      flex: 0 0 auto;
     }
     .dot-cpu { background: #22c55e; }
     .dot-mem { background: #a855f7; }
     .dot-disk { background: #f59e0b; }
+    .dot-net-in { background: #38bdf8; }
+    .dot-net-out { background: #fb7185; }
+    .dot-io-read { background: #34d399; }
+    .dot-io-write { background: #fbbf24; }
     .h-stat-main {
       font-size: 20px;
       font-weight: 700;
@@ -236,15 +264,13 @@
       gap: 6px;
       flex-wrap: wrap;
     }
-    .h-stat-sub span {
-      white-space: nowrap;
-    }
+    .h-stat-sub span { white-space: nowrap; }
     .chart-container {
       position: relative;
       width: 100%;
       height: 230px;
     }
-    #historyCanvas {
+    .chart-container canvas {
       width: 100%;
       height: 100%;
       display: block;
@@ -265,6 +291,8 @@
       transition: opacity 0.15s ease, transform 0.1s ease;
       z-index: 10;
       white-space: nowrap;
+      left: 0;
+      top: 0;
     }
     .chart-tooltip .tip-time {
       font-size: 11px;
@@ -280,15 +308,8 @@
       gap: 8px;
       margin: 3px 0;
     }
-    .tip-val {
-      font-weight: 600;
-      color: #fff;
-    }
-    .tip-detail {
-      color: #888;
-      font-size: 11px;
-      margin-left: 2px;
-    }
+    .tip-val { font-weight: 600; color: #fff; }
+    .tip-detail { color: #888; font-size: 11px; margin-left: 2px; }
     .chart-footer {
       display: flex;
       justify-content: space-between;
@@ -315,10 +336,9 @@
       transition: background 0.15s ease, color 0.15s ease;
       user-select: none;
     }
-    .legend-item:hover {
-      background: #252525;
-      color: #fff;
-    }
+    .legend-item.static { cursor: default; }
+    .legend-item:hover { background: #252525; color: #fff; }
+    .legend-item.static:hover { background: transparent; color: inherit; }
     .last-updated {
       text-align: center;
       color: #444;
@@ -332,7 +352,7 @@
     <h1>🖥️ System Dashboard</h1>
     <span class="hostname" id="hostname">Loading...</span>
   </div>
-  
+
   <div class="grid">
     <div class="card">
       <div class="card-title">CPU Usage</div>
@@ -343,7 +363,7 @@
       </div>
       <div id="cpuGrid" class="cpu-grid"></div>
     </div>
-    
+
     <div class="card">
       <div class="card-title">Memory</div>
       <div class="stat-value" id="mem">--%</div>
@@ -352,13 +372,13 @@
         <div class="progress-fill" id="memBar" style="width: 0%"></div>
       </div>
     </div>
-    
+
     <div class="card">
       <div class="card-title">Uptime</div>
       <div class="stat-value" id="uptime">--</div>
       <div class="stat-label">since last boot</div>
     </div>
-    
+
     <div class="card">
       <div class="card-title">Load Average</div>
       <div class="stat-value" id="load">--</div>
@@ -366,48 +386,107 @@
     </div>
   </div>
 
-  <!-- Historical Telemetry (Last Hour) -->
-  <div class="history-card">
-    <div class="chart-header">
-      <div class="chart-title-area">
-        <div class="card-title">Historical Trends (Last Hour)</div>
-        <div class="chart-subtitle" id="historySubtitle">Initialising telemetry...</div>
-      </div>
-      <div class="tab-group" id="metricTabs">
-        <button class="tab-btn active" data-metric="all">All Metrics</button>
-        <button class="tab-btn" data-metric="cpu">CPU</button>
-        <button class="tab-btn" data-metric="mem">Memory</button>
-        <button class="tab-btn" data-metric="disk">Storage</button>
-      </div>
-    </div>
-
-    <!-- 1-Hour Stat Summaries (Min / Avg / Peak) -->
-    <div class="h-stats-grid" id="historyStatsGrid">
-      <!-- Populated dynamically -->
-    </div>
-
-    <!-- Canvas Chart Container -->
-    <div class="chart-container" id="chartContainer">
-      <canvas id="historyCanvas"></canvas>
-      <div class="chart-tooltip" id="chartTooltip"></div>
-    </div>
-
-    <div class="chart-footer">
-      <div class="chart-legend" id="chartLegend">
-        <div class="legend-item" data-metric="cpu">
-          <span class="h-stat-dot dot-cpu"></span> CPU Utilisation
-        </div>
-        <div class="legend-item" data-metric="mem">
-          <span class="h-stat-dot dot-mem"></span> Memory Utilisation
-        </div>
-        <div class="legend-item" data-metric="disk">
-          <span class="h-stat-dot dot-disk"></span> Storage (Root /)
-        </div>
-      </div>
-      <div id="sampleResolutionInfo">Resolution: 10s intervals</div>
+  <div class="range-bar">
+    <div class="card-title">History window</div>
+    <div class="tab-group" id="rangeTabs">
+      <button type="button" class="tab-btn active" data-hours="1">1 hour</button>
+      <button type="button" class="tab-btn" data-hours="3">3 hours</button>
+      <button type="button" class="tab-btn" data-hours="6">6 hours</button>
+      <button type="button" class="tab-btn" data-hours="12">12 hours</button>
+      <button type="button" class="tab-btn" data-hours="24">24 hours</button>
     </div>
   </div>
-  
+
+  <div class="history-grid">
+  <div class="history-card" data-kind="util">
+    <div class="chart-header">
+      <div class="chart-title-area">
+        <div class="card-title">Utilisation</div>
+        <div class="chart-subtitle">Initialising telemetry...</div>
+      </div>
+      <div class="tab-group" id="metricTabs">
+        <button type="button" class="tab-btn active" data-metric="all">All Metrics</button>
+        <button type="button" class="tab-btn" data-metric="cpu">CPU</button>
+        <button type="button" class="tab-btn" data-metric="mem">Memory</button>
+        <button type="button" class="tab-btn" data-metric="disk">Storage</button>
+      </div>
+    </div>
+    <div class="h-stats-grid"></div>
+    <div class="chart-container">
+      <canvas></canvas>
+      <div class="chart-tooltip"></div>
+    </div>
+    <div class="chart-footer">
+      <div class="chart-legend">
+        <div class="legend-item" data-metric="cpu"><span class="h-stat-dot dot-cpu"></span> CPU Utilisation</div>
+        <div class="legend-item" data-metric="mem"><span class="h-stat-dot dot-mem"></span> Memory Utilisation</div>
+        <div class="legend-item" data-metric="disk"><span class="h-stat-dot dot-disk"></span> Storage (Root /)</div>
+      </div>
+      <div class="sample-info">Resolution: 10s intervals</div>
+    </div>
+  </div>
+
+  <div class="history-card" data-kind="io">
+    <div class="chart-header">
+      <div class="chart-title-area">
+        <div class="card-title">Disk I/O</div>
+        <div class="chart-subtitle">Read and write, megabytes per second</div>
+      </div>
+    </div>
+    <div class="h-stats-grid"></div>
+    <div class="chart-container">
+      <canvas></canvas>
+      <div class="chart-tooltip"></div>
+    </div>
+    <div class="chart-footer">
+      <div class="chart-legend">
+        <div class="legend-item static"><span class="h-stat-dot dot-io-read"></span> Read</div>
+        <div class="legend-item static"><span class="h-stat-dot dot-io-write"></span> Write</div>
+      </div>
+      <div>Whole disks. Partitions and zram are left out.</div>
+    </div>
+  </div>
+
+  <div class="history-card" data-kind="net">
+    <div class="chart-header">
+      <div class="chart-title-area">
+        <div class="card-title">Network I/O</div>
+        <div class="chart-subtitle">In and out, megabits per second</div>
+      </div>
+    </div>
+    <div class="h-stats-grid"></div>
+    <div class="chart-container">
+      <canvas></canvas>
+      <div class="chart-tooltip"></div>
+    </div>
+    <div class="chart-footer">
+      <div class="chart-legend">
+        <div class="legend-item static"><span class="h-stat-dot dot-net-in"></span> In</div>
+        <div class="legend-item static"><span class="h-stat-dot dot-net-out"></span> Out</div>
+      </div>
+      <div>Physical interfaces. Loopback and bridges are left out.</div>
+    </div>
+  </div>
+
+  <div class="history-card" data-kind="temp">
+    <div class="chart-header">
+      <div class="chart-title-area">
+        <div class="card-title">Temperatures</div>
+        <div class="chart-subtitle">Every sensor on one scale, °C</div>
+      </div>
+    </div>
+    <div class="h-stats-grid"></div>
+    <div class="chart-container">
+      <canvas></canvas>
+      <div class="chart-tooltip"></div>
+    </div>
+    <div class="chart-footer">
+      <div class="chart-legend"></div>
+      <div>Same window as the other charts.</div>
+    </div>
+  </div>
+  </div>
+
   <div class="grid">
     <div class="card">
       <div class="card-title">System Info</div>
@@ -418,33 +497,129 @@
         <div class="info-item"><span class="label">Processes</span><span class="value" id="procs">--</span></div>
       </div>
     </div>
-    
     <div class="card">
       <div class="card-title">Storage</div>
       <div class="disk-grid" id="disks"></div>
     </div>
   </div>
-  
+
   <div class="last-updated" id="updated">Last updated: --</div>
 
   <script>
-    // State
     let historyPoints = [];
-    let currentMetricView = 'all'; // 'all', 'cpu', 'mem', 'disk'
-    let hoverState = null;
+    let rangeHours = 1;
+    let currentMetricView = 'all';
+    let sampleInterval = 10;
 
-    // Elements
-    const canvas = document.getElementById('historyCanvas');
-    const chartContainer = document.getElementById('chartContainer');
-    const tooltip = document.getElementById('chartTooltip');
-    const historySubtitle = document.getElementById('historySubtitle');
-    const historyStatsGrid = document.getElementById('historyStatsGrid');
-    const sampleResolutionInfo = document.getElementById('sampleResolutionInfo');
-
-    // CPU trace only. A 5-sample triangular average (~50s at the 10s interval)
-    // takes the needle off one-sample spikes so the hour is readable.
-    // Stat boxes stay on the raw samples.
     const CPU_SMOOTH_RADIUS = 2;
+    const TEMP_PALETTE = [
+      ['#f97316', '249, 115, 22'],
+      ['#ef4444', '239, 68, 68'],
+      ['#eab308', '234, 179, 8'],
+      ['#22c55e', '34, 197, 94'],
+      ['#38bdf8', '56, 189, 248'],
+      ['#a855f7', '168, 85, 247'],
+      ['#fb7185', '251, 113, 133'],
+      ['#2dd4bf', '45, 212, 191'],
+      ['#c084fc', '192, 132, 252'],
+      ['#facc15', '250, 204, 21']
+    ];
+
+    const METRIC_CONFIG = {
+      cpu: { label: 'CPU', color: '#22c55e', colorRgb: '34, 197, 94', unit: '%', dotClass: 'dot-cpu' },
+      mem: { label: 'Memory', color: '#a855f7', colorRgb: '168, 85, 247', unit: '%', dotClass: 'dot-mem' },
+      disk: { label: 'Storage', color: '#f59e0b', colorRgb: '245, 158, 11', unit: '%', dotClass: 'dot-disk' }
+    };
+
+    function num(value) {
+      return typeof value === 'number' && Number.isFinite(value) ? value : null;
+    }
+
+    function formatRate(value) {
+      if (value == null) return '—';
+      const abs = Math.abs(value);
+      if (abs >= 100) return value.toFixed(0);
+      if (abs >= 10) return value.toFixed(1);
+      return value.toFixed(2);
+    }
+
+    function formatTick(value) {
+      if (value === 0) return '0';
+      const abs = Math.abs(value);
+      if (abs >= 100) return String(Math.round(value));
+      if (abs >= 10) return value.toFixed(0);
+      if (abs >= 1) return String(Math.round(value * 10) / 10);
+      if (abs >= 0.1) return value.toFixed(2);
+      return value.toFixed(3);
+    }
+
+    function niceMax(value) {
+      if (!(value > 0)) return 1;
+      const padded = value * 1.2;
+      const exp = Math.floor(Math.log10(padded));
+      const base = Math.pow(10, exp);
+      const n = padded / base;
+      const nice = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+      return nice * base;
+    }
+
+    function rangeWord() {
+      return rangeHours === 1 ? '1-hour' : rangeHours + '-hour';
+    }
+
+    function axisNow(points) {
+      const wall = Date.now() / 1000;
+      if (!points.length) return wall;
+      const last = points[points.length - 1].t;
+      if (Math.abs(wall - last) < 180) return Math.max(wall, last);
+      return last;
+    }
+
+    function windowCaption(points) {
+      if (!points.length) return 'Awaiting telemetry samples...';
+      const span = Math.max(0, points[points.length - 1].t - points[0].t);
+      const wanted = rangeHours * 3600;
+      const count = points.length;
+      if (span >= wanted - sampleInterval) {
+        return 'Past ' + rangeHours + ' h • ' + count + ' samples (' + sampleInterval + 's interval)';
+      }
+      const shown = span >= 3600
+        ? (span / 3600).toFixed(1) + ' h'
+        : Math.max(1, Math.round(span / 60)) + ' min';
+      return 'Past ' + shown + ' recorded • ' + count + ' samples (building ' + rangeHours + ' h window)';
+    }
+
+    function summarize(values) {
+      const nums = values.map(num).filter(v => v != null);
+      if (!nums.length) return null;
+      let min = Infinity;
+      let max = -Infinity;
+      let sum = 0;
+      nums.forEach(v => {
+        if (v < min) min = v;
+        if (v > max) max = v;
+        sum += v;
+      });
+      return {
+        current: nums[nums.length - 1],
+        min: Math.round(min * 100) / 100,
+        max: Math.round(max * 100) / 100,
+        avg: Math.round((sum / nums.length) * 100) / 100
+      };
+    }
+
+    function statBox(dotClass, title, main, sub) {
+      const dot = dotClass ? '<span class="h-stat-dot ' + dotClass + '"></span>' : '';
+      return '<div class="h-stat-box"><div class="h-stat-header">' + dot + title +
+        '</div><div class="h-stat-main">' + main + '</div><div class="h-stat-sub">' + sub + '</div></div>';
+    }
+
+    function rateSub(stats, unit) {
+      if (!stats) return 'Waiting for a second sample';
+      return '<span>Low: ' + formatRate(stats.min) + ' ' + unit + '</span>' +
+        '<span>Avg: ' + formatRate(stats.avg) + ' ' + unit + '</span>' +
+        '<span>Peak: ' + formatRate(stats.max) + ' ' + unit + '</span>';
+    }
 
     function smoothedCpuAt(points, index) {
       let acc = 0;
@@ -461,611 +636,520 @@
 
     function cpuDisplayMap(points) {
       const byTime = new Map();
-      for (let i = 0; i < points.length; i++) {
-        byTime.set(points[i].t, smoothedCpuAt(points, i));
-      }
+      for (let i = 0; i < points.length; i++) byTime.set(points[i].t, smoothedCpuAt(points, i));
       return byTime;
     }
 
-    function cpuTipParts(point) {
-      const index = historyPoints.indexOf(point);
-      const drawn = index >= 0 ? smoothedCpuAt(historyPoints, index) : point.cpu;
-      return { drawn, raw: point.cpu };
+    function tempNames(points) {
+      const names = [];
+      const seen = new Set();
+      points.forEach(point => {
+        const temps = point.temps || {};
+        Object.keys(temps).forEach(name => {
+          if (!seen.has(name) && num(temps[name]) != null) {
+            seen.add(name);
+            names.push(name);
+          }
+        });
+      });
+      return names;
     }
 
-    const METRIC_CONFIG = {
-      cpu: {
-        label: 'CPU',
-        color: '#22c55e',
-        colorRgb: '34, 197, 94',
-        key: 'cpu',
-        unit: '%',
-        dotClass: 'dot-cpu'
-      },
-      mem: {
-        label: 'Memory',
-        color: '#a855f7',
-        colorRgb: '168, 85, 247',
-        key: 'mem',
-        unit: '%',
-        dotClass: 'dot-mem'
-      },
-      disk: {
-        label: 'Storage',
-        color: '#f59e0b',
-        colorRgb: '245, 158, 11',
-        key: 'disk',
-        unit: '%',
-        dotClass: 'dot-disk'
+    class ChartView {
+      constructor(root) {
+        this.root = root;
+        this.kind = root.dataset.kind;
+        this.canvas = root.querySelector('canvas');
+        this.container = root.querySelector('.chart-container');
+        this.tooltip = root.querySelector('.chart-tooltip');
+        this.statsEl = root.querySelector('.h-stats-grid');
+        this.subtitle = root.querySelector('.chart-subtitle');
+        this.legend = root.querySelector('.chart-legend');
+        this.sampleInfo = root.querySelector('.sample-info');
+        this.hover = null;
+        this.series = [];
+        this.container.addEventListener('mousemove', (event) => this.onMove(event));
+        this.container.addEventListener('mouseleave', () => this.hide());
+        this.container.addEventListener('touchmove', (event) => {
+          if (event.touches && event.touches[0]) this.onMove(event.touches[0]);
+        }, { passive: true });
+        this.container.addEventListener('touchend', () => this.hide());
       }
-    };
 
-    // Live Stats Fetching
+      buildSeries() {
+        if (this.kind === 'util') {
+          const active = currentMetricView === 'all' ? ['disk', 'mem', 'cpu'] : [currentMetricView];
+          const cpuDrawn = active.includes('cpu') ? cpuDisplayMap(historyPoints) : null;
+          this.series = active.map(key => {
+            const conf = METRIC_CONFIG[key];
+            return {
+              key: key,
+              label: conf.label,
+              color: conf.color,
+              colorRgb: conf.colorRgb,
+              dotClass: conf.dotClass,
+              unit: '%',
+              value: (point) => key === 'cpu' && cpuDrawn
+                ? cpuDrawn.get(point.t) ?? point.cpu ?? 0
+                : point[key] ?? 0,
+              raw: key === 'cpu' ? (point) => point.cpu : null
+            };
+          });
+          return;
+        }
+        if (this.kind === 'net') {
+          this.series = [
+            { key: 'in', label: 'In', color: '#38bdf8', colorRgb: '56, 189, 248', dotClass: 'dot-net-in', unit: 'Mbit/s', value: (p) => num(p.netInMbps) },
+            { key: 'out', label: 'Out', color: '#fb7185', colorRgb: '251, 113, 133', dotClass: 'dot-net-out', unit: 'Mbit/s', value: (p) => num(p.netOutMbps) }
+          ];
+          return;
+        }
+        if (this.kind === 'io') {
+          this.series = [
+            { key: 'read', label: 'Read', color: '#34d399', colorRgb: '52, 211, 153', dotClass: 'dot-io-read', unit: 'MB/s', value: (p) => num(p.diskReadMBs) },
+            { key: 'write', label: 'Write', color: '#fbbf24', colorRgb: '251, 191, 36', dotClass: 'dot-io-write', unit: 'MB/s', value: (p) => num(p.diskWriteMBs) }
+          ];
+          return;
+        }
+        const names = tempNames(historyPoints);
+        this.series = names.map((name, index) => {
+          const palette = TEMP_PALETTE[index % TEMP_PALETTE.length];
+          return {
+            key: name,
+            label: name,
+            color: palette[0],
+            colorRgb: palette[1],
+            dotClass: '',
+            unit: '°C',
+            value: (point) => num(point.temps && point.temps[name])
+          };
+        });
+      }
+
+      updateStats() {
+        this.buildSeries();
+        const word = rangeWord();
+        this.subtitle.textContent = windowCaption(historyPoints);
+        if (this.sampleInfo) {
+          this.sampleInfo.textContent = 'Resolution: ' + sampleInterval + 's • Kept for 24 h';
+        }
+        if (this.kind === 'util') this.renderUtilStats(word);
+        else if (this.kind === 'net') this.renderRateStats('Mbit/s', 'netInMbps', 'netOutMbps', 'dot-net-in', 'dot-net-out', 'In', 'Out');
+        else if (this.kind === 'io') this.renderRateStats('MB/s', 'diskReadMBs', 'diskWriteMBs', 'dot-io-read', 'dot-io-write', 'Read', 'Write');
+        else this.renderTempStats(word);
+      }
+
+      renderUtilStats(word) {
+        const cpu = summarize(historyPoints.map(p => p.cpu ?? 0));
+        const mem = summarize(historyPoints.map(p => p.mem ?? 0));
+        const disk = summarize(historyPoints.map(p => p.disk ?? 0));
+        const last = historyPoints[historyPoints.length - 1] || {};
+        if (!cpu) {
+          this.statsEl.innerHTML = '';
+          return;
+        }
+        const lowAvgPeak = (stats) =>
+          '<span>Low: ' + stats.min + '%</span><span>Avg: ' + stats.avg + '%</span><span>Peak: ' + stats.max + '%</span>';
+        if (currentMetricView === 'all') {
+          this.statsEl.innerHTML =
+            statBox('dot-cpu', 'CPU Utilisation', cpu.current + '%', lowAvgPeak(cpu)) +
+            statBox('dot-mem', 'Memory Utilisation', mem.current + '%', lowAvgPeak(mem)) +
+            statBox('dot-disk', 'Storage (Root /)', disk.current + '%',
+              '<span>Used: ' + (last.diskUsed ?? '—') + 'G</span><span>Avg: ' + disk.avg + '%</span><span>Peak: ' + disk.max + '%</span>');
+          return;
+        }
+        if (currentMetricView === 'cpu') {
+          this.statsEl.innerHTML =
+            statBox('dot-cpu', 'Current CPU', cpu.current + '%', 'Live reading') +
+            statBox('', word + ' low', cpu.min + '%', 'Minimum utilisation') +
+            statBox('', word + ' average', cpu.avg + '%', 'Mean utilisation') +
+            statBox('', word + ' peak', cpu.max + '%', 'Highest load spike');
+          return;
+        }
+        if (currentMetricView === 'mem') {
+          this.statsEl.innerHTML =
+            statBox('dot-mem', 'Current Memory', mem.current + '%', (last.memUsed ?? '—') + ' / ' + (last.memTotal ?? '—') + ' GB') +
+            statBox('', word + ' low', mem.min + '%', 'Minimum usage') +
+            statBox('', word + ' average', mem.avg + '%', 'Mean memory usage') +
+            statBox('', word + ' peak', mem.max + '%', 'Peak memory pressure');
+          return;
+        }
+        this.statsEl.innerHTML =
+          statBox('dot-disk', 'Current Storage', disk.current + '%', (last.diskUsed ?? '—') + ' / ' + (last.diskTotal ?? '—') + ' GB used') +
+          statBox('', 'Total capacity', (last.diskTotal ?? '—') + ' GB', 'Root filesystem (/)') +
+          statBox('', word + ' average', disk.avg + '%', 'Mean usage') +
+          statBox('', word + ' peak', disk.max + '%', 'Peak recorded');
+      }
+
+      renderRateStats(unit, inKey, outKey, inDot, outDot, inLabel, outLabel) {
+        const inbound = summarize(historyPoints.map(p => num(p[inKey])));
+        const outbound = summarize(historyPoints.map(p => num(p[outKey])));
+        const inNow = inbound ? formatRate(inbound.current) + ' ' + unit : '—';
+        const outNow = outbound ? formatRate(outbound.current) + ' ' + unit : '—';
+        this.statsEl.innerHTML =
+          statBox(inDot, inLabel, inNow, rateSub(inbound, unit)) +
+          statBox(outDot, outLabel, outNow, rateSub(outbound, unit));
+      }
+
+      renderTempStats(word) {
+        if (!this.series.length) {
+          this.statsEl.innerHTML = statBox('', 'Sensors', 'None', 'No temperature sensors reported');
+          if (this.legend) this.legend.innerHTML = '';
+          return;
+        }
+        this.statsEl.innerHTML = this.series.map(series => {
+          const stats = summarize(historyPoints.map(point => series.value(point)));
+          if (!stats) return '';
+          return statBox('', series.label, stats.current.toFixed(1) + '°C',
+            '<span>Low: ' + stats.min.toFixed(1) + '°</span><span>Avg: ' + stats.avg.toFixed(1) + '°</span><span>Peak: ' + stats.max.toFixed(1) + '°</span>');
+        }).join('');
+        if (this.legend) {
+          this.legend.innerHTML = this.series.map(series =>
+            '<div class="legend-item static"><span class="h-stat-dot" style="background:' + series.color + '"></span>' + series.label + '</div>'
+          ).join('');
+        }
+      }
+
+      scale() {
+        const values = [];
+        historyPoints.forEach(point => {
+          this.series.forEach(series => {
+            const value = series.value(point);
+            if (value != null) values.push(value);
+          });
+        });
+        if (this.kind === 'util') return { min: 0, max: 100, percent: true };
+        if (this.kind === 'temp') {
+          if (!values.length) return { min: 0, max: 100, percent: false };
+          const min = Math.min.apply(null, values);
+          const max = Math.max.apply(null, values);
+          let yMin = Math.max(0, Math.floor(min - 4));
+          let yMax = Math.ceil(max + 4);
+          if (yMax - yMin < 8) yMax = yMin + 8;
+          return { min: yMin, max: yMax, percent: false };
+        }
+        const peak = values.length ? Math.max.apply(null, values) : 0;
+        return { min: 0, max: niceMax(peak), percent: false };
+      }
+
+      draw() {
+        this.buildSeries();
+        if (!this.canvas) return;
+        const ctx = this.canvas.getContext('2d');
+        const rect = this.container.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        this.canvas.width = rect.width * dpr;
+        this.canvas.height = rect.height * dpr;
+        ctx.resetTransform();
+        ctx.scale(dpr, dpr);
+        const width = rect.width;
+        const height = rect.height;
+        ctx.clearRect(0, 0, width, height);
+
+        const padding = { top: 16, right: 18, bottom: 26, left: 48 };
+        const graphW = width - padding.left - padding.right;
+        const graphH = height - padding.top - padding.bottom;
+        if (graphW <= 0 || graphH <= 0) return;
+
+        const y = this.scale();
+        const ySpan = y.max - y.min || 1;
+        const nowTs = axisNow(historyPoints);
+        const tMin = nowTs - rangeHours * 3600;
+        const tMax = nowTs;
+        const getX = (t) => padding.left + Math.max(0, Math.min(graphW, ((t - tMin) / (tMax - tMin)) * graphW));
+        const getY = (value) => padding.top + graphH - ((value - y.min) / ySpan) * graphH;
+
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        for (let step = 0; step <= 4; step++) {
+          const value = y.min + (step / 4) * ySpan;
+          const py = getY(value);
+          ctx.strokeStyle = '#242424';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(padding.left, py);
+          ctx.lineTo(padding.left + graphW, py);
+          ctx.stroke();
+          ctx.fillStyle = '#666';
+          ctx.fillText(y.percent ? Math.round(value) + '%' : formatTick(value), padding.left - 8, py);
+        }
+
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = '#555';
+        for (let step = 0; step <= 4; step++) {
+          const t = tMin + (step / 4) * (tMax - tMin);
+          const secAgo = Math.round(nowTs - t);
+          let label = 'Now';
+          if (step !== 4) {
+            if (secAgo >= 3600) {
+              const hrs = Math.round(secAgo / 3600);
+              label = '-' + hrs + 'h';
+            } else if (secAgo >= 60) {
+              label = '-' + Math.round(secAgo / 60) + 'm';
+            } else {
+              label = '-' + secAgo + 's';
+            }
+          }
+          ctx.fillText(label, getX(t), padding.top + graphH + 8);
+        }
+
+        if (!historyPoints.length || !this.series.length) {
+          ctx.fillStyle = '#666';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(
+            this.kind === 'temp' && historyPoints.length ? 'No temperature sensors reported.' : 'Recording historical telemetry...',
+            padding.left + graphW / 2,
+            padding.top + graphH / 2
+          );
+          return;
+        }
+
+        const pts = historyPoints.filter(point => point.t >= tMin && point.t <= tMax + 1);
+        this.series.forEach(series => {
+          const alpha = this.kind === 'util' && currentMetricView === 'all' ? 0.12 : 0.22;
+          let segment = [];
+          const flush = () => {
+            if (segment.length < 2) {
+              segment = [];
+              return;
+            }
+            const fill = ctx.createLinearGradient(0, padding.top, 0, padding.top + graphH);
+            fill.addColorStop(0, 'rgba(' + series.colorRgb + ', ' + alpha + ')');
+            fill.addColorStop(1, 'rgba(' + series.colorRgb + ', 0)');
+            ctx.beginPath();
+            ctx.moveTo(getX(segment[0].t), getY(segment[0].v));
+            segment.forEach(item => ctx.lineTo(getX(item.t), getY(item.v)));
+            ctx.lineTo(getX(segment[segment.length - 1].t), padding.top + graphH);
+            ctx.lineTo(getX(segment[0].t), padding.top + graphH);
+            ctx.closePath();
+            ctx.fillStyle = fill;
+            ctx.fill();
+            ctx.beginPath();
+            ctx.strokeStyle = series.color;
+            ctx.lineWidth = 2;
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+            ctx.moveTo(getX(segment[0].t), getY(segment[0].v));
+            segment.forEach(item => ctx.lineTo(getX(item.t), getY(item.v)));
+            ctx.stroke();
+            segment = [];
+          };
+          pts.forEach(point => {
+            const value = series.value(point);
+            if (value == null) flush();
+            else segment.push({ t: point.t, v: value });
+          });
+          flush();
+        });
+
+        if (this.hover) {
+          const point = this.hover;
+          const hx = getX(point.t);
+          ctx.save();
+          ctx.setLineDash([4, 4]);
+          ctx.strokeStyle = '#666';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(hx, padding.top);
+          ctx.lineTo(hx, padding.top + graphH);
+          ctx.stroke();
+          ctx.restore();
+          this.series.forEach(series => {
+            const value = series.value(point);
+            if (value == null) return;
+            const hy = getY(value);
+            ctx.beginPath();
+            ctx.arc(hx, hy, 6, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(' + series.colorRgb + ', 0.35)';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(hx, hy, 3.5, 0, Math.PI * 2);
+            ctx.fillStyle = series.color;
+            ctx.fill();
+          });
+        }
+        this._layout = { padding, graphW, tMin, tMax, getX };
+      }
+
+      onMove(event) {
+        if (!historyPoints.length || !this._layout) return;
+        const rect = this.container.getBoundingClientRect();
+        const mouseX = event.clientX - rect.left;
+        const mouseY = event.clientY - rect.top;
+        const layout = this._layout;
+        if (mouseX < layout.padding.left || mouseX > rect.width - layout.padding.right) {
+          this.hide();
+          return;
+        }
+        const target = layout.tMin + ((mouseX - layout.padding.left) / layout.graphW) * (layout.tMax - layout.tMin);
+        let closest = null;
+        let minDiff = Infinity;
+        historyPoints.forEach(point => {
+          const diff = Math.abs(point.t - target);
+          if (diff < minDiff) {
+            minDiff = diff;
+            closest = point;
+          }
+        });
+        if (!closest) return;
+        this.hover = closest;
+        this.draw();
+        this.showTooltip(closest, mouseX, mouseY, rect.width);
+      }
+
+      showTooltip(point, mouseX, mouseY, containerW) {
+        const date = new Date(point.t * 1000);
+        const secAgo = Math.max(0, Math.round(Date.now() / 1000 - point.t));
+        const ago = secAgo >= 3600
+          ? (secAgo / 3600).toFixed(1) + 'h ago'
+          : secAgo >= 60 ? Math.round(secAgo / 60) + 'm ago' : secAgo + 's ago';
+        let content = '<div class="tip-time">' + date.toLocaleString() + ' (' + ago + ')</div>';
+        this.series.forEach(series => {
+          const value = series.value(point);
+          const shown = value == null ? '—' : (series.unit === '%' ? value + '%' : series.unit === '°C' ? value.toFixed(1) + '°C' : formatRate(value) + ' ' + series.unit);
+          let extra = '';
+          if (series.raw) {
+            const raw = series.raw(point);
+            if (value != null && Math.abs(value - raw) >= 1) extra = '<span class="tip-detail">(sample ' + raw + '%)</span>';
+          } else if (series.key === 'mem') {
+            extra = '<span class="tip-detail">(' + (point.memUsed ?? '—') + ' / ' + (point.memTotal ?? '—') + ' GB)</span>';
+          } else if (series.key === 'disk') {
+            extra = '<span class="tip-detail">(' + (point.diskUsed ?? '—') + ' / ' + (point.diskTotal ?? '—') + ' GB)</span>';
+          }
+          const dot = series.dotClass
+            ? '<span class="h-stat-dot ' + series.dotClass + '"></span>'
+            : '<span class="h-stat-dot" style="background:' + series.color + '"></span>';
+          content += '<div class="tip-row">' + dot + '<span>' + series.label + ':</span><span class="tip-val">' + shown + '</span>' + extra + '</div>';
+        });
+        this.tooltip.innerHTML = content;
+        this.tooltip.style.opacity = '1';
+        const tipW = this.tooltip.offsetWidth || 190;
+        let left = mouseX + 16;
+        if (left + tipW > containerW) left = Math.max(8, mouseX - tipW - 12);
+        const top = Math.max(8, mouseY - 40);
+        this.tooltip.style.transform = 'translate(' + left + 'px, ' + top + 'px)';
+      }
+
+      hide() {
+        if (!this.hover) return;
+        this.hover = null;
+        this.tooltip.style.opacity = '0';
+        this.draw();
+      }
+    }
+
+    const charts = Array.from(document.querySelectorAll('.history-card')).map(root => new ChartView(root));
+
     async function fetchStats() {
       try {
         const response = await fetch('/api/stats');
         const data = await response.json();
         updateDashboard(data);
-      } catch (e) {
+      } catch (error) {
         document.getElementById('cpu').textContent = 'Error';
-        console.error(e);
+        console.error(error);
       }
     }
 
-    // Historical Telemetry Fetching
     async function fetchHistory() {
       try {
-        const response = await fetch('/api/history');
+        const response = await fetch('/api/history?hours=' + rangeHours);
         const data = await response.json();
         if (data && Array.isArray(data.points)) {
           historyPoints = data.points;
-          updateHistoryUI(data);
-          drawChart();
+          sampleInterval = data.interval || 10;
+          charts.forEach(chart => {
+            chart.hover = null;
+            chart.tooltip.style.opacity = '0';
+            chart.updateStats();
+            chart.draw();
+          });
         }
-      } catch (e) {
-        console.error('Failed to fetch history:', e);
+      } catch (error) {
+        console.error('Failed to fetch history:', error);
       }
     }
-    
+
     function updateDashboard(data) {
-      // CPU
       document.getElementById('cpu').textContent = data.cpu + '%';
       document.getElementById('cpuModel').textContent = data.cpuModel;
       const cpuBar = document.getElementById('cpuBar');
       cpuBar.style.width = data.cpu + '%';
       cpuBar.className = 'progress-fill ' + (data.cpu > 80 ? 'red' : data.cpu > 50 ? 'yellow' : 'green');
-      
-      // Per-core CPU
+
       const cpuGrid = document.getElementById('cpuGrid');
       if (data.perCpu) {
-        cpuGrid.innerHTML = data.perCpu.map((usage, i) => `
-          <div class="core-item">
-            <div class="core-info">
-              <span>Core ${i}</span>
-              <span>${Math.round(usage)}%</span>
-            </div>
-            <div class="core-bar">
-              <div class="core-fill ${usage > 80 ? 'red' : usage > 50 ? 'yellow' : 'green'}" style="width: ${usage}%"></div>
-            </div>
-          </div>
-        `).join('');
+        cpuGrid.innerHTML = data.perCpu.map((usage, i) =>
+          '<div class="core-item"><div class="core-info"><span>Core ' + i + '</span><span>' + Math.round(usage) +
+          '%</span></div><div class="core-bar"><div class="core-fill ' +
+          (usage > 80 ? 'red' : usage > 50 ? 'yellow' : 'green') + '" style="width: ' + usage + '%"></div></div></div>'
+        ).join('');
       }
-      
-      // Memory
+
       const memPct = data.memPercent;
       document.getElementById('mem').textContent = memPct + '%';
       document.getElementById('memDetail').textContent = data.memUsed + ' / ' + data.memTotal + ' GB';
       const memBar = document.getElementById('memBar');
       memBar.style.width = memPct + '%';
       memBar.className = 'progress-fill ' + (memPct > 80 ? 'red' : memPct > 50 ? 'yellow' : 'green');
-      
-      // Uptime
+
       document.getElementById('uptime').textContent = data.uptime;
-      
-      // Load
       document.getElementById('load').textContent = data.load;
-      
-      // System info
       document.getElementById('hostname').textContent = data.hostname;
       document.getElementById('kernel').textContent = data.kernel;
       document.getElementById('os').textContent = data.os;
       document.getElementById('arch').textContent = data.arch;
       document.getElementById('procs').textContent = data.procs;
-      
-      // Disks
-      const diskContainer = document.getElementById('disks');
-      diskContainer.innerHTML = data.disks.map(d => `
-        <div class="disk-item">
-          <div class="disk-name">${d.mount}</div>
-          <div class="disk-usage">${d.used} / ${d.total} (${d.pct}%)</div>
-          <div class="progress-bar">
-            <div class="progress-fill ${d.pct > 80 ? 'red' : d.pct > 50 ? 'yellow' : 'green'}" style="width: ${d.pct}%"></div>
-          </div>
-        </div>
-      `).join('');
-      
-      // Updated
+
+      document.getElementById('disks').innerHTML = data.disks.map(disk =>
+        '<div class="disk-item"><div class="disk-name">' + disk.mount + '</div><div class="disk-usage">' +
+        disk.used + ' / ' + disk.total + ' (' + disk.pct + '%)</div><div class="progress-bar"><div class="progress-fill ' +
+        (disk.pct > 80 ? 'red' : disk.pct > 50 ? 'yellow' : 'green') + '" style="width: ' + disk.pct + '%"></div></div></div>'
+      ).join('');
+
       document.getElementById('updated').textContent = 'Last updated: ' + new Date().toLocaleTimeString();
     }
 
-    function calculateMetricsStats(points) {
-      if (!points.length) return null;
-      const stats = {};
-      ['cpu', 'mem', 'disk'].forEach(key => {
-        let min = Infinity, max = -Infinity, sum = 0;
-        points.forEach(p => {
-          const v = p[key] ?? 0;
-          if (v < min) min = v;
-          if (v > max) max = v;
-          sum += v;
-        });
-        const last = points[points.length - 1];
-        stats[key] = {
-          current: last[key] ?? 0,
-          min: Math.round(min * 10) / 10,
-          max: Math.round(max * 10) / 10,
-          avg: Math.round((sum / points.length) * 10) / 10,
-          lastPoint: last
-        };
-      });
-      return stats;
-    }
-
-    function updateHistoryUI(data) {
-      const count = historyPoints.length;
-      if (!count) {
-        historySubtitle.textContent = 'Awaiting telemetry samples...';
-        return;
-      }
-
-      const firstTime = historyPoints[0].t;
-      const lastTime = historyPoints[count - 1].t;
-      const spanMin = Math.max(1, Math.round((lastTime - firstTime) / 60));
-      
-      if (spanMin >= 55) {
-        historySubtitle.textContent = `Past 60 minutes • ${count} samples (${data.interval || 10}s interval)`;
-      } else {
-        historySubtitle.textContent = `Past ${spanMin} min recorded • ${count} samples (building 1-hour window)`;
-      }
-
-      sampleResolutionInfo.textContent = `Resolution: ${data.interval || 10}s • Retention: 60 min`;
-
-      // Update summary cards
-      const mStats = calculateMetricsStats(historyPoints);
-      if (!mStats) return;
-
-      if (currentMetricView === 'all') {
-        historyStatsGrid.innerHTML = `
-          <div class="h-stat-box">
-            <div class="h-stat-header"><span class="h-stat-dot dot-cpu"></span> CPU Utilisation</div>
-            <div class="h-stat-main">${mStats.cpu.current}%</div>
-            <div class="h-stat-sub">
-              <span>Low: ${mStats.cpu.min}%</span>
-              <span>Avg: ${mStats.cpu.avg}%</span>
-              <span>Peak: ${mStats.cpu.max}%</span>
-            </div>
-          </div>
-          <div class="h-stat-box">
-            <div class="h-stat-header"><span class="h-stat-dot dot-mem"></span> Memory Utilisation</div>
-            <div class="h-stat-main">${mStats.mem.current}%</div>
-            <div class="h-stat-sub">
-              <span>Low: ${mStats.mem.min}%</span>
-              <span>Avg: ${mStats.mem.avg}%</span>
-              <span>Peak: ${mStats.mem.max}%</span>
-            </div>
-          </div>
-          <div class="h-stat-box">
-            <div class="h-stat-header"><span class="h-stat-dot dot-disk"></span> Storage (Root /)</div>
-            <div class="h-stat-main">${mStats.disk.current}%</div>
-            <div class="h-stat-sub">
-              <span>Used: ${mStats.disk.lastPoint.diskUsed ?? '--'}G</span>
-              <span>Avg: ${mStats.disk.avg}%</span>
-              <span>Peak: ${mStats.disk.max}%</span>
-            </div>
-          </div>
-        `;
-      } else if (currentMetricView === 'cpu') {
-        historyStatsGrid.innerHTML = `
-          <div class="h-stat-box">
-            <div class="h-stat-header"><span class="h-stat-dot dot-cpu"></span> Current CPU</div>
-            <div class="h-stat-main">${mStats.cpu.current}%</div>
-            <div class="h-stat-sub">Live reading</div>
-          </div>
-          <div class="h-stat-box">
-            <div class="h-stat-header">1-Hour Low</div>
-            <div class="h-stat-main">${mStats.cpu.min}%</div>
-            <div class="h-stat-sub">Minimum utilisation</div>
-          </div>
-          <div class="h-stat-box">
-            <div class="h-stat-header">1-Hour Average</div>
-            <div class="h-stat-main">${mStats.cpu.avg}%</div>
-            <div class="h-stat-sub">Mean utilisation</div>
-          </div>
-          <div class="h-stat-box">
-            <div class="h-stat-header">1-Hour Peak</div>
-            <div class="h-stat-main">${mStats.cpu.max}%</div>
-            <div class="h-stat-sub">Highest load spike</div>
-          </div>
-        `;
-      } else if (currentMetricView === 'mem') {
-        const lp = mStats.mem.lastPoint;
-        historyStatsGrid.innerHTML = `
-          <div class="h-stat-box">
-            <div class="h-stat-header"><span class="h-stat-dot dot-mem"></span> Current Memory</div>
-            <div class="h-stat-main">${mStats.mem.current}%</div>
-            <div class="h-stat-sub">${lp.memUsed ?? '--'} / ${lp.memTotal ?? '--'} GB</div>
-          </div>
-          <div class="h-stat-box">
-            <div class="h-stat-header">1-Hour Low</div>
-            <div class="h-stat-main">${mStats.mem.min}%</div>
-            <div class="h-stat-sub">Minimum usage</div>
-          </div>
-          <div class="h-stat-box">
-            <div class="h-stat-header">1-Hour Average</div>
-            <div class="h-stat-main">${mStats.mem.avg}%</div>
-            <div class="h-stat-sub">Mean memory usage</div>
-          </div>
-          <div class="h-stat-box">
-            <div class="h-stat-header">1-Hour Peak</div>
-            <div class="h-stat-main">${mStats.mem.max}%</div>
-            <div class="h-stat-sub">Peak memory pressure</div>
-          </div>
-        `;
-      } else if (currentMetricView === 'disk') {
-        const lp = mStats.disk.lastPoint;
-        historyStatsGrid.innerHTML = `
-          <div class="h-stat-box">
-            <div class="h-stat-header"><span class="h-stat-dot dot-disk"></span> Current Storage</div>
-            <div class="h-stat-main">${mStats.disk.current}%</div>
-            <div class="h-stat-sub">${lp.diskUsed ?? '--'} / ${lp.diskTotal ?? '--'} GB used</div>
-          </div>
-          <div class="h-stat-box">
-            <div class="h-stat-header">Total Capacity</div>
-            <div class="h-stat-main">${lp.diskTotal ?? '--'} GB</div>
-            <div class="h-stat-sub">Root filesystem (/)</div>
-          </div>
-          <div class="h-stat-box">
-            <div class="h-stat-header">1-Hour Average</div>
-            <div class="h-stat-main">${mStats.disk.avg}%</div>
-            <div class="h-stat-sub">Mean usage</div>
-          </div>
-          <div class="h-stat-box">
-            <div class="h-stat-header">1-Hour Peak</div>
-            <div class="h-stat-main">${mStats.disk.max}%</div>
-            <div class="h-stat-sub">Peak recorded</div>
-          </div>
-        `;
-      }
-    }
-
-    // Canvas Chart Rendering
-    function drawChart() {
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      const rect = chartContainer.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-      ctx.resetTransform();
-      ctx.scale(dpr, dpr);
-
-      const width = rect.width;
-      const height = rect.height;
-
-      ctx.clearRect(0, 0, width, height);
-
-      const padding = { top: 16, right: 18, bottom: 26, left: 44 };
-      const graphW = width - padding.left - padding.right;
-      const graphH = height - padding.top - padding.bottom;
-
-      if (graphW <= 0 || graphH <= 0) return;
-
-      // Draw Grid Lines (0%, 25%, 50%, 75%, 100%)
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'middle';
-      ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-
-      const gridSteps = [0, 25, 50, 75, 100];
-      gridSteps.forEach(pct => {
-        const y = padding.top + graphH - (pct / 100) * graphH;
-        
-        ctx.strokeStyle = '#242424';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(padding.left, y);
-        ctx.lineTo(padding.left + graphW, y);
-        ctx.stroke();
-
-        ctx.fillStyle = '#666';
-        ctx.fillText(pct + '%', padding.left - 8, y);
-      });
-
-      if (!historyPoints || historyPoints.length === 0) {
-        ctx.fillStyle = '#666';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('Recording historical telemetry... Please wait a moment.', padding.left + graphW / 2, padding.top + graphH / 2);
-        return;
-      }
-
-      // Time Range calculation
-      const nowTs = historyPoints[historyPoints.length - 1].t;
-      const startTs = historyPoints[0].t;
-      // Fixed 1 hour (3600s) window if span >= 15m, else adaptive minimum 10m
-      const windowSec = Math.max(600, Math.min(3600, (nowTs - startTs) > 900 ? 3600 : Math.max(600, nowTs - startTs)));
-      const tMin = nowTs - windowSec;
-      const tMax = nowTs;
-
-      // Helper to map (t, val) to Canvas coordinates
-      function getX(t) {
-        const ratio = (t - tMin) / (tMax - tMin);
-        return padding.left + Math.max(0, Math.min(graphW, ratio * graphW));
-      }
-      function getY(val) {
-        const clamped = Math.max(0, Math.min(100, val));
-        return padding.top + graphH - (clamped / 100) * graphH;
-      }
-
-      // Draw X-axis time marks
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      ctx.fillStyle = '#555';
-      const timeSteps = 4;
-      for (let i = 0; i <= timeSteps; i++) {
-        const t = tMin + (i / timeSteps) * (tMax - tMin);
-        const x = getX(t);
-        const secAgo = Math.round(nowTs - t);
-        let label = '';
-        if (i === timeSteps) {
-          label = 'Now';
-        } else if (secAgo >= 60) {
-          label = `-${Math.round(secAgo / 60)}m`;
-        } else {
-          label = `-${secAgo}s`;
-        }
-        ctx.fillText(label, x, padding.top + graphH + 8);
-      }
-
-      // Determine active metrics
-      const activeMetrics = currentMetricView === 'all'
-        ? ['disk', 'mem', 'cpu'] // Draw disk & mem first, cpu on top
-        : [currentMetricView];
-      const cpuDrawn = activeMetrics.includes('cpu') ? cpuDisplayMap(historyPoints) : null;
-      function chartValue(point, mKey) {
-        if (mKey === 'cpu' && cpuDrawn) return cpuDrawn.get(point.t) ?? point.cpu ?? 0;
-        return point[mKey] ?? 0;
-      }
-
-      // Draw each metric line & fill
-      activeMetrics.forEach(mKey => {
-        const conf = METRIC_CONFIG[mKey];
-        if (!conf) return;
-
-        // Collect points within window
-        const pts = historyPoints.filter(p => p.t >= tMin);
-        if (pts.length < 2) return;
-
-        // 1. Draw gradient fill underneath
-        const fillGrad = ctx.createLinearGradient(0, padding.top, 0, padding.top + graphH);
-        const alpha = currentMetricView === 'all' ? 0.12 : 0.28;
-        fillGrad.addColorStop(0, `rgba(${conf.colorRgb}, ${alpha})`);
-        fillGrad.addColorStop(1, `rgba(${conf.colorRgb}, 0.0)`);
-
-        ctx.beginPath();
-        ctx.moveTo(getX(pts[0].t), getY(chartValue(pts[0], mKey)));
-        for (let i = 1; i < pts.length; i++) {
-          ctx.lineTo(getX(pts[i].t), getY(chartValue(pts[i], mKey)));
-        }
-        ctx.lineTo(getX(pts[pts.length - 1].t), padding.top + graphH);
-        ctx.lineTo(getX(pts[0].t), padding.top + graphH);
-        ctx.closePath();
-        ctx.fillStyle = fillGrad;
-        ctx.fill();
-
-        // 2. Draw stroke line
-        ctx.beginPath();
-        ctx.strokeStyle = conf.color;
-        ctx.lineWidth = currentMetricView === 'all' ? 2 : 2.5;
-        ctx.lineJoin = 'round';
-        ctx.lineCap = 'round';
-
-        ctx.moveTo(getX(pts[0].t), getY(chartValue(pts[0], mKey)));
-        for (let i = 1; i < pts.length; i++) {
-          ctx.lineTo(getX(pts[i].t), getY(chartValue(pts[i], mKey)));
-        }
-        ctx.stroke();
-      });
-
-      // Hover Crosshair & Dots
-      if (hoverState && hoverState.point) {
-        const p = hoverState.point;
-        const hX = getX(p.t);
-
-        // Vertical Guide Line
-        ctx.save();
-        ctx.setLineDash([4, 4]);
-        ctx.strokeStyle = '#666';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(hX, padding.top);
-        ctx.lineTo(hX, padding.top + graphH);
-        ctx.stroke();
-        ctx.restore();
-
-        // Highlight Dots on active lines
-        activeMetrics.forEach(mKey => {
-          const conf = METRIC_CONFIG[mKey];
-          const val = chartValue(p, mKey);
-          const hY = getY(val);
-
-          // Outer glowing ring
-          ctx.beginPath();
-          ctx.arc(hX, hY, 6, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(${conf.colorRgb}, 0.35)`;
-          ctx.fill();
-
-          // Inner solid circle
-          ctx.beginPath();
-          ctx.arc(hX, hY, 3.5, 0, Math.PI * 2);
-          ctx.fillStyle = conf.color;
-          ctx.fill();
-        });
-      }
-    }
-
-    // Chart Hover Interaction
-    function handleChartMouseMove(e) {
-      if (!historyPoints.length) return;
-      const rect = chartContainer.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
-
-      const padding = { top: 16, right: 18, bottom: 26, left: 44 };
-      const graphW = rect.width - padding.left - padding.right;
-
-      if (mouseX < padding.left || mouseX > rect.width - padding.right) {
-        hideTooltip();
-        return;
-      }
-
-      const nowTs = historyPoints[historyPoints.length - 1].t;
-      const startTs = historyPoints[0].t;
-      const windowSec = Math.max(600, Math.min(3600, (nowTs - startTs) > 900 ? 3600 : Math.max(600, nowTs - startTs)));
-      const tMin = nowTs - windowSec;
-      const tMax = nowTs;
-
-      const targetT = tMin + ((mouseX - padding.left) / graphW) * (tMax - tMin);
-
-      // Find closest point
-      let closest = historyPoints[0];
-      let minDiff = Math.abs(closest.t - targetT);
-      for (let i = 1; i < historyPoints.length; i++) {
-        const diff = Math.abs(historyPoints[i].t - targetT);
-        if (diff < minDiff) {
-          minDiff = diff;
-          closest = historyPoints[i];
-        }
-      }
-
-      hoverState = { point: closest, x: mouseX, y: mouseY };
-      drawChart();
-      showTooltip(closest, mouseX, mouseY, rect.width);
-    }
-
-    function showTooltip(point, mouseX, mouseY, containerW) {
-      const date = new Date(point.t * 1000);
-      const timeStr = date.toLocaleTimeString();
-      const secAgo = Math.max(0, Math.round(Date.now() / 1000 - point.t));
-      const agoStr = secAgo >= 60 ? `${Math.round(secAgo / 60)}m ago` : `${secAgo}s ago`;
-
-      let content = `<div class="tip-time">${timeStr} (${agoStr})</div>`;
-      const cpu = cpuTipParts(point);
-      const cpuSample = Math.abs(cpu.drawn - cpu.raw) >= 1
-        ? `<span class="tip-detail">(sample ${cpu.raw}%)</span>`
-        : '';
-
-      if (currentMetricView === 'all') {
-        content += `
-          <div class="tip-row">
-            <span class="h-stat-dot dot-cpu"></span>
-            <span>CPU:</span>
-            <span class="tip-val">${cpu.drawn}%</span>
-            ${cpuSample}
-          </div>
-          <div class="tip-row">
-            <span class="h-stat-dot dot-mem"></span>
-            <span>Memory:</span>
-            <span class="tip-val">${point.mem}%</span>
-            <span class="tip-detail">(${point.memUsed ?? '--'} / ${point.memTotal ?? '--'} GB)</span>
-          </div>
-          <div class="tip-row">
-            <span class="h-stat-dot dot-disk"></span>
-            <span>Storage:</span>
-            <span class="tip-val">${point.disk}%</span>
-            <span class="tip-detail">(${point.diskUsed ?? '--'} / ${point.diskTotal ?? '--'} GB)</span>
-          </div>
-        `;
-      } else {
-        const conf = METRIC_CONFIG[currentMetricView];
-        const val = currentMetricView === 'cpu' ? cpu.drawn : point[currentMetricView];
-        let detail = '';
-        if (currentMetricView === 'cpu' && Math.abs(cpu.drawn - cpu.raw) >= 1) {
-          detail = ` (sample ${cpu.raw}%)`;
-        } else if (currentMetricView === 'mem') {
-          detail = ` (${point.memUsed ?? '--'} / ${point.memTotal ?? '--'} GB)`;
-        } else if (currentMetricView === 'disk') {
-          detail = ` (${point.diskUsed ?? '--'} / ${point.diskTotal ?? '--'} GB)`;
-        }
-        content += `
-          <div class="tip-row">
-            <span class="h-stat-dot ${conf.dotClass}"></span>
-            <span>${conf.label}:</span>
-            <span class="tip-val">${val}%</span>
-            <span class="tip-detail">${detail}</span>
-          </div>
-        `;
-      }
-
-      tooltip.innerHTML = content;
-      tooltip.style.opacity = '1';
-
-      // Smart positioning
-      let left = mouseX + 16;
-      if (left + 190 > containerW) {
-        left = mouseX - 200;
-      }
-      let top = Math.max(10, mouseY - 40);
-      tooltip.style.transform = `translate(${left}px, ${top}px)`;
-    }
-
-    function hideTooltip() {
-      hoverState = null;
-      tooltip.style.opacity = '0';
-      drawChart();
-    }
-
-    // Event Listeners
-    chartContainer.addEventListener('mousemove', handleChartMouseMove);
-    chartContainer.addEventListener('mouseleave', hideTooltip);
-
-    chartContainer.addEventListener('touchmove', e => {
-      if (e.touches && e.touches[0]) {
-        handleChartMouseMove(e.touches[0]);
-      }
-    }, { passive: true });
-    chartContainer.addEventListener('touchend', hideTooltip);
-
-    // Tab buttons
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentMetricView = btn.dataset.metric;
-        updateHistoryUI({ interval: 10 });
-        drawChart();
-      });
+    document.getElementById('rangeTabs').addEventListener('click', (event) => {
+      const button = event.target.closest('button');
+      if (!button) return;
+      rangeHours = Number(button.dataset.hours);
+      document.querySelectorAll('#rangeTabs .tab-btn').forEach(item => item.classList.remove('active'));
+      button.classList.add('active');
+      fetchHistory();
     });
 
-    // Clickable Legend items
-    document.querySelectorAll('.legend-item').forEach(item => {
-      item.addEventListener('click', () => {
-        const metric = item.dataset.metric;
-        const targetTab = document.querySelector(`.tab-btn[data-metric="${metric}"]`);
-        if (targetTab) targetTab.click();
-      });
+    document.getElementById('metricTabs').addEventListener('click', (event) => {
+      const button = event.target.closest('button');
+      if (!button) return;
+      currentMetricView = button.dataset.metric;
+      document.querySelectorAll('#metricTabs .tab-btn').forEach(item => item.classList.remove('active'));
+      button.classList.add('active');
+      const util = charts.find(chart => chart.kind === 'util');
+      if (util) {
+        util.updateStats();
+        util.draw();
+      }
     });
 
-    window.addEventListener('resize', () => {
-      drawChart();
+    document.querySelector('[data-kind="util"] .chart-legend').addEventListener('click', (event) => {
+      const item = event.target.closest('.legend-item');
+      if (!item) return;
+      const target = document.querySelector('#metricTabs .tab-btn[data-metric="' + item.dataset.metric + '"]');
+      if (target) target.click();
     });
 
-    // Polling triggers:
-    // 1. Live stats: every 3s
+    window.addEventListener('resize', () => charts.forEach(chart => chart.draw()));
+    if (window.ResizeObserver) {
+      const historyGrid = document.querySelector('.history-grid');
+      new ResizeObserver(() => charts.forEach(chart => chart.draw())).observe(historyGrid);
+    }
+
     fetchStats();
     setInterval(fetchStats, 3000);
-
-    // 2. Historical telemetry: immediately, then every 10s
     fetchHistory();
     setInterval(fetchHistory, 10000);
   </script>
