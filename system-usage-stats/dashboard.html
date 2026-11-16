@@ -243,7 +243,7 @@
       display: inline-block;
       flex: 0 0 auto;
     }
-    .dot-cpu { background: #22c55e; }
+    .dot-cpu { background: #38bdf8; }
     .dot-mem { background: #a855f7; }
     .dot-disk { background: #f59e0b; }
     .dot-net-in { background: #38bdf8; }
@@ -526,7 +526,7 @@
     ];
 
     const METRIC_CONFIG = {
-      cpu: { label: 'CPU', color: '#22c55e', colorRgb: '34, 197, 94', unit: '%', dotClass: 'dot-cpu' },
+      cpu: { label: 'CPU', color: '#38bdf8', colorRgb: '56, 189, 248', unit: '%', dotClass: 'dot-cpu' },
       mem: { label: 'Memory', color: '#a855f7', colorRgb: '168, 85, 247', unit: '%', dotClass: 'dot-mem' },
       disk: { label: 'Storage', color: '#f59e0b', colorRgb: '245, 158, 11', unit: '%', dotClass: 'dot-disk' }
     };
@@ -909,7 +909,7 @@
 
         const pts = historyPoints.filter(point => point.t >= tMin && point.t <= tMax + 1);
         this.series.forEach(series => {
-          const alpha = this.kind === 'util' && currentMetricView === 'all' ? 0.12 : 0.22;
+          const alpha = (this.kind === 'util' && currentMetricView === 'all' && series.key !== 'cpu') ? 0.12 : 0.22;
           let segment = [];
           const flush = () => {
             if (segment.length < 2) {
