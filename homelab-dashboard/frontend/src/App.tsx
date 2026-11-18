@@ -21,7 +21,7 @@ interface Host {
   procs: number;
   averages: {
     m5: AverageWindow;
-    m10: AverageWindow;
+    m15: AverageWindow;
     m30: AverageWindow;
   };
 }
@@ -183,7 +183,7 @@ function when(value: string) {
 function AvgBars({ metric, averages }: { metric: keyof AverageWindow; averages: Host["averages"] }) {
   const rows = [
     ["5m", averages.m5],
-    ["10m", averages.m10],
+    ["15m", averages.m15],
     ["30m", averages.m30],
   ] as const;
   return (
@@ -653,7 +653,7 @@ function App() {
         </section>
       )}
 
-      <p className="foot">The large figures are the last 15 seconds. The bars are 5, 10, and 30 minute averages. Each card’s CPU and RAM line fills in over the past hour. A switch leaves that app off or on after a reboot. Press / to search.</p>
+      <p className="foot">The large figures are the last 15 seconds. The bars are 5, 15, and 30 minute averages. Each card’s CPU and RAM line fills in over the past hour. A switch leaves that app off or on after a reboot. Press / to search.</p>
     </div>
   );
 }

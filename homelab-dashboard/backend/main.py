@@ -195,7 +195,7 @@ def _window(now: float, seconds: float) -> list:
 
 
 def host_view(latest: dict) -> dict:
-    """Live figure is the last 15 seconds. Bars are 5, 10, and 30 minute means."""
+    """Live figure is the last 15 seconds. Bars are 5, 15, and 30 minute means."""
     now = time.time()
     live_rows = _window(now, LIVE_SECONDS) or [latest]
     older = None
@@ -218,7 +218,7 @@ def host_view(latest: dict) -> dict:
             "temp": _mean(rows, "temp_c"),
         }
 
-    shown["averages"] = {"m5": pack(300), "m10": pack(600), "m30": pack(1800)}
+    shown["averages"] = {"m5": pack(300), "m15": pack(900), "m30": pack(1800)}
     shown.pop("cpu_total", None)
     shown.pop("cpu_idle", None)
     return shown
