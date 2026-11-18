@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 
 type Status = "up" | "down" | "off" | "unknown";
@@ -179,6 +179,48 @@ function lightLabel(status: Status) {
   return "Checking";
 }
 
+function ServiceCard({ service, busy, onToggle }: { service: Service; busy: boolean; onToggle: (service: Service) => void }) {
+  return (
+    <article className={`tile ${service.status}${service.slow ? " slow" : ""}`}>
+      <div className="toprow">
+        {service.url ? (
+          <a className="name" href={service.url} target="_blank" rel="noreferrer">{service.name}</a>
+        ) : (
+          <span className="name">{service.name}</span>
+        )}
+        <span className="ms">{service.latency_ms === null ? "" : `${service.latency_ms} ms`}</span>
+        <label className="switch">
+          <input
+            type="checkbox"
+            checked={service.enabled}
+            disabled={busy}
+            aria-label={`${service.enabled ? "Switch off" : "Switch on"} ${service.name}`}
+            onChange={() => onToggle(service)}
+          />
+          <span />
+        </label>
+      </div>
+      <span className="state">{statusLabel(service)}</span>
+      <span className="blurb">{service.blurb}</span>
+      <p className="usage">
+        1h {service.usage?.cpu_percent == null ? "—" : `${service.usage.cpu_percent}%`} CPU
+        · {formatBytes(service.usage?.mem_bytes ?? null)} RAM
+      </p>
+      {service.lights.length > 0 && (
+        <div className="lights">
+          {service.lights.map((light) => (
+            <span key={light.id} className={`light ${light.status}`}>
+              <i />
+              {light.name}
+              <span>{lightLabel(light.status)}</span>
+            </span>
+          ))}
+        </div>
+      )}
+    </article>
+  );
+}
+
 function App() {
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState("");
@@ -270,6 +312,13 @@ function App() {
     () => services.filter((service) => matches(query, [service.name, service.blurb, service.url])).sort(compareServices),
     [services, query],
   );
+  const live = visible.filter((service) => service.status !== "off");
+  const offline = visible.filter((service) => service.status === "off");
+  const offlineRef = useRef<HTMLDetailsElement>(null);
+
+  useEffect(() => {
+    if (query.trim() && offlineRef.current) offlineRef.current.open = true;
+  }, [query]);
   const down = services.filter((service) => service.status === "down" && service.url);
   const up = services.filter((service) => service.status === "up").length;
   const off = services.filter((service) => service.status === "off").length;
@@ -396,50 +445,27 @@ function App() {
       {data?.ready ? (
         <section className="group">
           <h2>
-            This machine <span>{visible.length}</span>
+            This machine <span>{live.length}</span>
           </h2>
-          {visible.length === 0 ? <p className="empty">Nothing matches that search.</p> : (
+          {live.length === 0 && offline.length === 0 ? <p className="empty">Nothing matches that search.</p> : null}
+          {live.length > 0 && (
             <div className="grid">
-              {visible.map((service) => (
-                <article key={service.id} className={`tile ${service.status}${service.slow ? " slow" : ""}`}>
-                  <div className="toprow">
-                    {service.url ? (
-                      <a className="name" href={service.url} target="_blank" rel="noreferrer">{service.name}</a>
-                    ) : (
-                      <span className="name">{service.name}</span>
-                    )}
-                    <span className="ms">{service.latency_ms === null ? "" : `${service.latency_ms} ms`}</span>
-                    <label className="switch">
-                      <input
-                        type="checkbox"
-                        checked={service.enabled}
-                        disabled={busy === service.id}
-                        aria-label={`${service.enabled ? "Switch off" : "Switch on"} ${service.name}`}
-                        onChange={() => void toggle(service)}
-                      />
-                      <span />
-                    </label>
-                  </div>
-                  <span className="state">{statusLabel(service)}</span>
-                  <span className="blurb">{service.blurb}</span>
-                  <p className="usage">
-                    1h {service.usage?.cpu_percent == null ? "—" : `${service.usage.cpu_percent}%`} CPU
-                    · {formatBytes(service.usage?.mem_bytes ?? null)} RAM
-                  </p>
-                  {service.lights.length > 0 && (
-                    <div className="lights">
-                      {service.lights.map((light) => (
-                        <span key={light.id} className={`light ${light.status}`}>
-                          <i />
-                          {light.name}
-                          <span>{lightLabel(light.status)}</span>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </article>
+              {live.map((service) => (
+                <ServiceCard key={service.id} service={service} busy={busy === service.id} onToggle={(item) => void toggle(item)} />
               ))}
             </div>
+          )}
+          {offline.length > 0 && (
+            <details className="offline" ref={offlineRef}>
+              <summary>
+                Offline <span>{offline.length}</span>
+              </summary>
+              <div className="grid">
+                {offline.map((service) => (
+                  <ServiceCard key={service.id} service={service} busy={busy === service.id} onToggle={(item) => void toggle(item)} />
+                ))}
+              </div>
+            </details>
           )}
         </section>
       ) : (
