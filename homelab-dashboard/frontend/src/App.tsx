@@ -258,7 +258,7 @@ function ServiceCard({ service, busy, onToggle }: { service: Service; busy: bool
       </div>
       <span className="blurb">{service.blurb}</span>
       <p className="usage">
-        1h {service.usage?.cpu_percent == null ? "—" : `${service.usage.cpu_percent}%`} CPU
+        {service.usage?.cpu_percent == null ? "—" : `${service.usage.cpu_percent}%`} CPU
         · {formatBytes(service.usage?.mem_bytes ?? null)} RAM
       </p>
     </article>
