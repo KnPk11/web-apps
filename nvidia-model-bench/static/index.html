@@ -3,173 +3,124 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NVIDIA Build API - Model Responsiveness Benchmark & OpenCode Configurator</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#0c0f0c">
+  <title>NVIDIA bench</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="app-container">
-    <!-- Header -->
-    <header class="navbar">
+  <div class="app">
+    <header class="top">
       <div class="brand">
-        <div class="logo-icon">⚡</div>
-        <div class="brand-text">
-          <h1>NVIDIA NIM Model Benchmark</h1>
-          <span class="subtitle">Real-Time Responsiveness & Latency Probe for OpenCode Integration</span>
+        <span class="mark" aria-hidden="true"></span>
+        <div>
+          <p class="kicker">NVIDIA Build</p>
+          <h1>Model bench</h1>
         </div>
       </div>
-      <div class="header-actions">
-        <button id="btnFetchModels" class="btn btn-secondary">
-          <span class="icon">🔄</span> Fetch Live Models
-        </button>
-        <button id="btnOpenCodeConfig" class="btn btn-accent">
-          <span class="icon">⚙️</span> Generate OpenCode Config
-        </button>
-      </div>
+      <p class="lede" id="keyState">Checking the key on this machine.</p>
+      <button type="button" class="ghost" id="configBtn">OpenCode fragment</button>
     </header>
 
-    <!-- Main Content -->
-    <main class="content-grid">
-      <!-- Controls & Settings Panel -->
-      <section class="card settings-card">
-        <div class="card-header">
-          <h2><span class="icon">🔑</span> API Configuration</h2>
-          <span class="badge badge-info" id="modelCountBadge">102 Models Detected</span>
+    <div class="layout">
+      <section class="panel picker">
+        <div class="panel-head">
+          <h2>Models</h2>
+          <span id="modelCount">Loading</span>
         </div>
-        
-        <div class="form-group">
-          <label for="apiKeyInput">NVIDIA API Key (Build / NIM):</label>
-          <div class="input-wrapper">
-            <input type="password" id="apiKeyInput" placeholder="nvapi-xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off">
-            <button id="toggleApiKey" class="btn-icon" title="Toggle Visibility">👁️</button>
-          </div>
-          <p class="help-text">Obtained free at <a href="https://build.nvidia.com" target="_blank" rel="noopener">build.nvidia.com</a>. Saved securely in your browser's local storage.</p>
+        <input id="modelSearch" class="field" type="search" placeholder="Search models" aria-label="Search models" autocomplete="off" spellcheck="false">
+        <div class="chips" id="chips">
+          <button type="button" class="chip on" data-filter="all">All</button>
+          <button type="button" class="chip" data-filter="chat">Chat</button>
+          <button type="button" class="chip" data-filter="reasoning">Reasoning</button>
+          <button type="button" class="chip" data-filter="code">Code</button>
+          <button type="button" class="chip" data-filter="other">Other</button>
         </div>
+        <div class="picker-actions">
+          <span id="selectedCount">0 selected</span>
+          <button type="button" class="text" id="selectVisible">Visible</button>
+          <button type="button" class="text" id="selectRecommended">Suggested</button>
+          <button type="button" class="text" id="selectNone">Clear</button>
+        </div>
+        <div id="modelList" class="model-list" role="list"></div>
 
-        <div class="form-group">
-          <label for="promptInput">Test Benchmark Prompt:</label>
-          <input type="text" id="promptInput" value="Write a Python function to check if a string is a palindrome." placeholder="Enter test prompt">
+        <label class="label" for="prompt">Prompt</label>
+        <div class="chips" id="presets">
+          <button type="button" class="chip on" data-prompt="Reply with exactly five words about backups." data-tokens="32">Short</button>
+          <button type="button" class="chip" data-prompt="Write a Python function that returns true when a string is a palindrome. Code only." data-tokens="80">Code</button>
+          <button type="button" class="chip" data-prompt="Which is larger, 3/7 or 5/12? Answer in one sentence." data-tokens="48">Reason</button>
         </div>
+        <textarea id="prompt" rows="3">Reply with exactly five words about backups.</textarea>
 
-        <!-- Filter Chips -->
-        <div class="filter-section">
-          <label>Filter Model List:</label>
-          <div class="chip-group" id="filterChips">
-            <button class="chip active" data-filter="all">All Models</button>
-            <button class="chip" data-filter="coding">Coding & Development</button>
-            <button class="chip" data-filter="reasoning">Reasoning & Logic</button>
-            <button class="chip" data-filter="qwen">Qwen / DeepSeek</button>
-            <button class="chip" data-filter="meta">Meta Llama</button>
-            <button class="chip" data-filter="mistral">Mistral AI</button>
-          </div>
-        </div>
+        <details class="keybox" id="keyBox">
+          <summary>Use a different API key</summary>
+          <input id="apiKey" class="field" type="password" autocomplete="off" placeholder="nvapi-..." aria-label="NVIDIA API key override">
+          <p class="help">Leave this empty when scratch-pc already has a key. A key typed here is kept in this browser.</p>
+        </details>
 
-        <div class="selection-actions">
-          <div class="select-counters">
-            <span id="selectedCountText">6 models selected</span>
-          </div>
-          <div class="btn-group">
-            <button id="btnSelectAll" class="btn-sm btn-ghost">Select Visible</button>
-            <button id="btnDeselectAll" class="btn-sm btn-ghost">Deselect All</button>
-            <button id="btnSelectRecommended" class="btn-sm btn-outline">Select Top Recommended</button>
-          </div>
-        </div>
-
-        <button id="btnRunProbe" class="btn btn-primary btn-block">
-          <span class="icon">🚀</span> Run Real-Time Responsiveness Test
-        </button>
+        <button type="button" class="run" id="runBtn">Run sample</button>
+        <p class="help" id="runNote">One short reply per model, four at a time.</p>
       </section>
 
-      <!-- Live Benchmark Results Panel -->
-      <section class="card results-card">
-        <div class="card-header">
-          <h2><span class="icon">📊</span> Real-Time Latency & Throughput Rankings</h2>
-          <div class="header-status">
-            <span id="lastUpdatedTime" class="timestamp">Not run yet</span>
-          </div>
+      <section class="panel results">
+        <div class="panel-head">
+          <h2>Results</h2>
+          <span id="runState">Not run yet</span>
         </div>
-
-        <div id="progressContainer" class="progress-bar-container hidden">
-          <div class="progress-info">
-            <span id="progressText">Testing latency across selected models...</span>
-            <span id="progressPercent">0%</span>
-          </div>
-          <div class="progress-track">
-            <div id="progressBar" class="progress-fill"></div>
-          </div>
+        <div class="meters" id="meters" hidden>
+          <article>
+            <p class="label">Fastest first token</p>
+            <strong id="bestTtft">—</strong>
+            <span id="bestTtftName"></span>
+          </article>
+          <article>
+            <p class="label">Highest throughput</p>
+            <strong id="bestTps">—</strong>
+            <span id="bestTpsName"></span>
+          </article>
+          <article>
+            <p class="label">Finished</p>
+            <strong id="doneCount">—</strong>
+            <span id="failCount"></span>
+          </article>
         </div>
-
-        <div class="table-controls">
-          <div class="search-box">
-            <input type="text" id="tableSearchInput" placeholder="Search results by model name...">
-          </div>
-          <div class="sort-box">
-            <label for="sortSelect">Sort By:</label>
-            <select id="sortSelect">
-              <option value="ttft">Queue Latency / TTFT (Fastest First)</option>
-              <option value="tps">Throughput / TPS (Highest First)</option>
-              <option value="totalTime">Total Time (Fastest First)</option>
-              <option value="name">Model Name (A-Z)</option>
+        <div class="progress" id="progress" hidden>
+          <span id="progressText">Testing</span>
+          <div class="track"><span id="progressBar"></span></div>
+        </div>
+        <div class="result-tools">
+          <input id="resultSearch" class="field" type="search" placeholder="Filter results" aria-label="Filter results" autocomplete="off">
+          <label class="sort">Sort
+            <select id="sort">
+              <option value="ttft">First token</option>
+              <option value="tps">Tokens / second</option>
+              <option value="total">Total time</option>
+              <option value="name">Name</option>
             </select>
-          </div>
+          </label>
         </div>
-
-        <div class="table-wrapper">
-          <table class="data-table" id="resultsTable">
-            <thead>
-              <tr>
-                <th width="4%">Select</th>
-                <th width="32%">Model Name / API Endpoint</th>
-                <th width="18%">Queue Latency (TTFT)</th>
-                <th width="14%">Speed (Tokens/s)</th>
-                <th width="18%">Status & Health</th>
-                <th width="14%">Sweet Spot Rank</th>
-              </tr>
-            </thead>
-            <tbody id="resultsTableBody">
-              <tr class="empty-state">
-                <td colspan="6">
-                  <div class="placeholder-box">
-                    <div class="placeholder-icon">📡</div>
-                    <h3>No Latency Test Executed Yet</h3>
-                    <p>Enter your NVIDIA API Key and click <strong>"Run Real-Time Responsiveness Test"</strong> to probe model queue times in real time.</p>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div id="resultList" class="result-list">
+          <p class="empty">Pick a few models and run a sample. The time to the first token is the queue plus the model.</p>
         </div>
       </section>
-    </main>
-
-    <!-- Modal for OpenCode Config Generator -->
-    <div id="configModal" class="modal-backdrop hidden">
-      <div class="modal-card">
-        <div class="modal-header">
-          <h3><span class="icon">💻</span> Generated OpenCode Configuration</h3>
-          <button id="btnCloseModal" class="btn-close">&times;</button>
-        </div>
-        <div class="modal-body">
-          <p>Copy this optimized JSON configuration into your <code>~/.config/opencode/opencode.json</code> file to utilise your selected models in OpenCode:</p>
-          <div class="code-block-wrapper">
-            <pre><code id="configJsonCode">// Generating configuration...</code></pre>
-            <button id="btnCopyConfig" class="btn btn-secondary btn-sm copy-btn">📋 Copy JSON</button>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button id="btnCloseModalBtn" class="btn btn-primary">Done</button>
-        </div>
-      </div>
     </div>
-
-    <!-- Footer -->
-    <footer class="footer">
-      <p>Built for OpenCode Integration • Powered by NVIDIA Build API (NIM Microservices)</p>
-    </footer>
+    <p class="foot">Samples run from scratch-pc to integrate.api.nvidia.com. A failed row is that model’s reply, not a guess.</p>
   </div>
 
+  <dialog id="configDialog">
+    <form method="dialog">
+      <header>
+        <h2>OpenCode provider</h2>
+        <button type="submit" class="text" value="close">Close</button>
+      </header>
+      <p class="help" id="configNote">Merge this provider into the existing OpenCode file. Do not replace the whole file.</p>
+      <pre id="configCode"></pre>
+      <button type="button" class="run" id="copyConfig">Copy</button>
+    </form>
+  </dialog>
   <script src="app.js"></script>
 </body>
 </html>
