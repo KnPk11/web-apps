@@ -131,10 +131,10 @@ function statusLabel(service: Service) {
 type SortKey = "default" | "name" | "type" | "cpu" | "ram" | "status" | "latency";
 
 const SORTS: Array<{ key: SortKey; label: string; defaultDir: 1 | -1 }> = [
-  { key: "name", label: "Name", defaultDir: 1 },
-  { key: "type", label: "Type", defaultDir: 1 },
   { key: "cpu", label: "1h CPU", defaultDir: -1 },
   { key: "ram", label: "1h RAM", defaultDir: -1 },
+  { key: "name", label: "Name", defaultDir: 1 },
+  { key: "type", label: "Type", defaultDir: 1 },
   { key: "status", label: "Status", defaultDir: 1 },
   { key: "latency", label: "Latency", defaultDir: 1 },
 ];
