@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 
 type Status = "up" | "down" | "off" | "unknown";
@@ -377,11 +377,40 @@ function App() {
   );
   const ytChannels = data?.feeds.youtube ?? [];
   const videos = (channel === "all"
-    ? ytChannels.flatMap((item) => item.videos.slice(0, 1))
+    ? ytChannels.flatMap((item) => item.videos)
     : ytChannels.find((item) => item.name === channel)?.videos ?? []
   ).filter((video) => matches(query, [video.title, video.channel])).sort((a, b) => Date.parse(b.published) - Date.parse(a.published));
+  const gitPanelRef = useRef<HTMLDivElement>(null);
+  const ytPanelRef = useRef<HTMLDivElement>(null);
+  const ytListRef = useRef<HTMLDivElement>(null);
   const showReading = !query || repos.length > 0 || videos.length > 0;
   const host = data?.host;
+
+  // Show as many videos as fit within the height of the GitHub panel.
+  useLayoutEffect(() => {
+    function fit() {
+      const git = gitPanelRef.current;
+      const yt = ytPanelRef.current;
+      const list = ytListRef.current;
+      if (!git || !yt || !list) return;
+      const rows = Array.from(list.querySelectorAll<HTMLElement>(".video-row"));
+      rows.forEach((row) => { row.style.display = ""; });
+      const stacked = yt.getBoundingClientRect().top >= git.getBoundingClientRect().bottom - 1;
+      if (stacked) {
+        rows.forEach((row, index) => { row.style.display = index < 4 ? "" : "none"; });
+        return;
+      }
+      const limit = git.getBoundingClientRect().bottom - 6;
+      let shown = 0;
+      rows.forEach((row) => {
+        if (shown > 0 && row.getBoundingClientRect().bottom > limit) row.style.display = "none";
+        else shown += 1;
+      });
+    }
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  });
 
   return (
     <div className="app">
@@ -562,7 +591,7 @@ function App() {
 
       {showReading && data?.ready && (
         <section className="reading">
-          <div className="panel">
+          <div className="panel" ref={gitPanelRef}>
             <h2>GitHub</h2>
             <div className="chips">
               {gitGroups.map((group) => (
@@ -593,7 +622,7 @@ function App() {
               ))}
             </div>
           </div>
-          <div className="panel">
+          <div className="panel" ref={ytPanelRef}>
             <h2>YouTube</h2>
             <div className="chips">
               <button type="button" className={channel === "all" ? "chip on" : "chip"} onClick={() => setChannel("all")}>Latest</button>
@@ -608,7 +637,7 @@ function App() {
                 </button>
               ))}
             </div>
-            <div className="yt">
+            <div className="yt" ref={ytListRef}>
               {videos.length === 0 && <p className="note">No matching videos.</p>}
               {videos.map((video) => (
                 <a key={video.url} className="video-row" href={video.url} target="_blank" rel="noreferrer">
