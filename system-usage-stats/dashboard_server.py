@@ -288,8 +288,8 @@ class TelemetryCollector(threading.Thread):
                     self.save_cache()
                     self._last_save_time = now
 
-            # Sleep 1.5s between sampling passes for responsive live CPU stats
-            self._stop_event.wait(timeout=1.5)
+            # Sleep 2s between sampling passes for the live CPU reading
+            self._stop_event.wait(timeout=2.0)
 
     def get_live_cpu(self):
         """Return the most recent live CPU reading."""
