@@ -63,18 +63,31 @@ interface Repo {
   language: string;
 }
 
+interface GitGroup {
+  id: string;
+  label: string;
+  note?: string;
+  repos: Repo[];
+}
+
 interface Video {
+  channel: string;
   title: string;
   url: string;
   published: string;
   thumbnail: string;
 }
 
+interface Channel {
+  name: string;
+  videos: Video[];
+}
+
 interface Overview {
   ready: boolean;
   host: Host | null;
   services: Service[];
-  feeds: { github: Repo[]; youtube: Video[] };
+  feeds: { github: GitGroup[]; youtube: Channel[] };
   checked_at: number | null;
 }
 
@@ -228,6 +241,8 @@ function App() {
   const [query, setQuery] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const [busy, setBusy] = useState<string | null>(null);
+  const [gitTopic, setGitTopic] = useState("stars");
+  const [channel, setChannel] = useState("all");
 
   useEffect(() => {
     let alive = true;
@@ -322,10 +337,16 @@ function App() {
   const down = services.filter((service) => service.status === "down" && service.url);
   const up = services.filter((service) => service.status === "up").length;
   const off = services.filter((service) => service.status === "off").length;
-  const repos = (data?.feeds.github ?? []).filter((repo) =>
-    matches(query, [repo.name, repo.full_name, repo.description, repo.language]),
+  const gitGroups = data?.feeds.github ?? [];
+  const selectedGit = gitGroups.find((group) => group.id === gitTopic) ?? gitGroups[0];
+  const repos = (selectedGit?.repos ?? []).filter((repo) =>
+    matches(query, [repo.name, repo.full_name, repo.description, repo.language, selectedGit?.label]),
   );
-  const videos = (data?.feeds.youtube ?? []).filter((video) => matches(query, [video.title]));
+  const ytChannels = data?.feeds.youtube ?? [];
+  const videos = (channel === "all"
+    ? ytChannels.flatMap((item) => item.videos.slice(0, 1))
+    : ytChannels.find((item) => item.name === channel)?.videos ?? []
+  ).filter((video) => matches(query, [video.title, video.channel])).sort((a, b) => Date.parse(b.published) - Date.parse(a.published));
   const showReading = !query || repos.length > 0 || videos.length > 0;
   const host = data?.host;
 
@@ -479,9 +500,20 @@ function App() {
       {showReading && data?.ready && (
         <section className="reading">
           <div className="panel">
-            <h2>
-              GitHub <span>homelab</span>
-            </h2>
+            <h2>GitHub</h2>
+            <div className="chips">
+              {gitGroups.map((group) => (
+                <button
+                  key={group.id}
+                  type="button"
+                  className={group.id === selectedGit?.id ? "chip on" : "chip"}
+                  onClick={() => setGitTopic(group.id)}
+                >
+                  {group.label}
+                </button>
+              ))}
+            </div>
+            {selectedGit?.note && <p className="note">{selectedGit.note}</p>}
             <div className="feed">
               {repos.length === 0 && <p className="note">No matching repositories.</p>}
               {repos.map((repo) => (
@@ -499,16 +531,29 @@ function App() {
             </div>
           </div>
           <div className="panel">
-            <h2>
-              YouTube <span>NetworkChuck</span>
-            </h2>
-            <div className="videos">
+            <h2>YouTube</h2>
+            <div className="chips">
+              <button type="button" className={channel === "all" ? "chip on" : "chip"} onClick={() => setChannel("all")}>Latest</button>
+              {ytChannels.map((item) => (
+                <button
+                  key={item.name}
+                  type="button"
+                  className={channel === item.name ? "chip on" : "chip"}
+                  onClick={() => setChannel(item.name)}
+                >
+                  {item.name}
+                </button>
+              ))}
+            </div>
+            <div className="yt">
               {videos.length === 0 && <p className="note">No matching videos.</p>}
               {videos.map((video) => (
-                <a key={video.url} href={video.url} target="_blank" rel="noreferrer">
+                <a key={video.url} className="video-row" href={video.url} target="_blank" rel="noreferrer">
                   {video.thumbnail && <img src={video.thumbnail} alt="" />}
-                  <span className="title">{video.title}</span>
-                  <span className="feed-meta">{when(video.published)}</span>
+                  <span>
+                    <span className="title">{video.title}</span>
+                    <span className="feed-meta">{video.channel} · {when(video.published)}</span>
+                  </span>
                 </a>
               ))}
             </div>

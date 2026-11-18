@@ -493,6 +493,32 @@ h1 {
   font-family: var(--mono);
 }
 
+.panel .chips {
+  margin: 8px 0;
+}
+
+.yt {
+  display: flex;
+  flex-direction: column;
+}
+
+.video-row {
+  display: grid;
+  grid-template-columns: 112px 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+
+.video-row img {
+  width: 112px;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: #000;
+  border-radius: 8px;
+}
+
 .videos {
   display: grid;
   grid-template-columns: 1fr 1fr;

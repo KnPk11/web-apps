@@ -512,7 +512,14 @@ def _load_disk_feeds() -> None:
     except (OSError, json.JSONDecodeError):
         return
     if isinstance(saved, dict):
-        _feeds.update({key: saved[key] for key in _feeds if key in saved})
+        github = saved.get("github")
+        youtube = saved.get("youtube")
+        if isinstance(github, list) and github and isinstance(github[0], dict) and "repos" in github[0]:
+            _feeds["github"] = github
+            _feeds["github_at"] = saved.get("github_at") or 0
+        if isinstance(youtube, list) and youtube and isinstance(youtube[0], dict) and "videos" in youtube[0]:
+            _feeds["youtube"] = youtube
+            _feeds["youtube_at"] = saved.get("youtube_at") or 0
 
 
 def _save_disk_feeds() -> None:
@@ -522,43 +529,135 @@ def _save_disk_feeds() -> None:
         return
 
 
-def _github() -> list | None:
-    since = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=45)).strftime("%Y-%m-%d")
-    try:
-        response = requests.get(
-            "https://api.github.com/search/repositories",
-            params={"q": f"topic:homelab pushed:>{since}", "sort": "stars", "order": "desc", "per_page": 6},
-            headers={**HEADERS, "Accept": "application/vnd.github+json"},
-            timeout=8,
-        )
-    except requests.RequestException:
-        return None
-    if response.status_code != 200:
-        return None
-    repos = []
+GITHUB_TOPICS = (
+    ("homelab", "Homelab", "topic:homelab"),
+    ("selfhosted", "Self-hosted", "topic:selfhosted"),
+    ("home-assistant", "Home Assistant", "topic:home-assistant"),
+    ("proxmox", "Proxmox", "topic:proxmox"),
+    ("ai", "AI", ("topic:llm", "topic:generative-ai")),
+)
+
+YOUTUBE_CHANNELS = (
+    ("NetworkChuck", "UC9x0AN7BWHpCDHSm9NiJFJQ"),
+    ("Techno Tim", "UCOk-gHyjcWZNj3Br4oxwh0A"),
+    ("Lawrence Systems", "UCHkYOD-3fZbuGhwsADBd9ZQ"),
+    ("DB Tech", "UCVy16RS5eEDh8anP8j94G2A"),
+    ("Christian Lempa", "UCZNhwA1B5YqiY1nLzmM0ZRg"),
+    ("Wolfgang's Channel", "UCsnGwSIHyoYN0kiINAGUKxg"),
+)
+
+
+def _topic_queries() -> list[tuple[str, str, tuple]]:
+    rows = []
+    for topic, label, query in GITHUB_TOPICS:
+        queries = query if isinstance(query, tuple) else (query,)
+        rows.append((topic, label, queries))
+    return rows
+
+
+def _respect_search_limit(response: requests.Response) -> None:
+    remaining = response.headers.get("X-RateLimit-Remaining")
+    if remaining is None or not str(remaining).isdigit() or int(remaining) > 1:
+        time.sleep(0.3)
+        return
+    reset = response.headers.get("X-RateLimit-Reset")
+    delay = 15
+    if reset and str(reset).isdigit():
+        delay = max(1, int(reset) - time.time() + 1)
+    time.sleep(min(delay, 70))
+
+
+def _github_search(query: str) -> dict:
+    found = {}
+    response = None
+    for _attempt in (1, 2):
+        try:
+            response = requests.get(
+                "https://api.github.com/search/repositories",
+                params={"q": query, "sort": "stars", "order": "desc", "per_page": 5},
+                headers={**HEADERS, "Accept": "application/vnd.github+json"},
+                timeout=8,
+            )
+        except requests.RequestException:
+            return found
+        if response.status_code in {403, 429}:
+            _respect_search_limit(response)
+            continue
+        break
+    if response is None or response.status_code != 200:
+        return found
     for repo in response.json().get("items", []):
-        repos.append({
+        url = repo.get("html_url") or ""
+        if not url:
+            continue
+        found[url] = {
             "name": repo.get("name") or "repo",
             "full_name": repo.get("full_name") or "",
-            "url": repo.get("html_url") or "",
+            "url": url,
             "description": (repo.get("description") or "")[:180],
             "stars": repo.get("stargazers_count") or 0,
             "language": repo.get("language") or "",
+        }
+    _respect_search_limit(response)
+    return found
+
+
+def _top_repos(found: dict, limit: int) -> list:
+    return sorted(found.values(), key=lambda repo: repo["stars"], reverse=True)[:limit]
+
+
+def _github() -> list | None:
+    created_after = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=90)).strftime("%Y-%m-%d")
+    all_time: dict = {}
+    rising: dict = {}
+    groups = []
+    for topic, label, queries in _topic_queries():
+        topic_repos: dict = {}
+        topic_rising: dict = {}
+        for query in queries:
+            found = _github_search(query)
+            topic_repos.update(found)
+            all_time.update(found)
+            gained = _github_search(f"{query} created:>{created_after}")
+            topic_rising.update(gained)
+            rising.update(gained)
+        if topic_repos:
+            groups.append({
+                "id": topic,
+                "label": label,
+                "note": "All-time stars",
+                "repos": _top_repos(topic_repos, 5),
+            })
+    if not all_time and not rising:
+        return None
+    lead = []
+    if all_time:
+        lead.append({
+            "id": "stars",
+            "label": "Stars",
+            "note": "Most stars, all time",
+            "repos": _top_repos(all_time, 8),
         })
-    return repos
+    if rising:
+        lead.append({
+            "id": "rising",
+            "label": "Rising",
+            "note": "Created in the last 90 days, by stars",
+            "repos": _top_repos(rising, 8),
+        })
+    return lead + groups
 
 
-def _youtube() -> list | None:
+def _channel_videos(name: str, channel_id: str) -> list:
     try:
-        feed = feedparser.parse("https://www.youtube.com/feeds/videos.xml?user=NetworkChuck")
+        feed = feedparser.parse(f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}")
     except Exception:
-        return None
-    if not feed.entries:
-        return None
+        return []
     videos = []
-    for entry in feed.entries[:4]:
+    for entry in feed.entries[:3]:
         video_id = getattr(entry, "yt_videoid", "") or (entry.id.split(":")[-1] if getattr(entry, "id", "") else "")
         videos.append({
+            "channel": name,
             "title": entry.title,
             "url": entry.link,
             "published": getattr(entry, "published", ""),
@@ -566,6 +665,15 @@ def _youtube() -> list | None:
             "thumbnail": f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg" if video_id else "",
         })
     return videos
+
+
+def _youtube() -> list | None:
+    channels = []
+    for name, channel_id in YOUTUBE_CHANNELS:
+        videos = _channel_videos(name, channel_id)
+        if videos:
+            channels.append({"name": name, "videos": videos})
+    return channels or None
 
 
 def refresh_feeds(force: bool = False) -> dict:
@@ -617,8 +725,8 @@ def _loop() -> None:
         try:
             with _work_lock:
                 services = probe_all()
-                feeds = refresh_feeds()
-                _update_snap(services=services, feeds=feeds)
+            feeds = refresh_feeds()
+            _update_snap(services=services, feeds=feeds)
         except Exception as exc:
             print("probe loop error:", exc)
         time.sleep(PROBE_EVERY)
