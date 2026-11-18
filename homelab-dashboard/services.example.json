@@ -1,0 +1,15 @@
+[
+  {
+    "id": "app",
+    "name": "Example",
+    "blurb": "What this app is",
+    "url": "http://127.0.0.1:8080/",
+    "target": "http://127.0.0.1:8080/",
+    "unit": "example.service",
+    "units": ["example.service"],
+    "switch_note": "",
+    "lights": [
+      {"id": "worker", "name": "Worker", "unit": "example-worker.service"}
+    ]
+  }
+]

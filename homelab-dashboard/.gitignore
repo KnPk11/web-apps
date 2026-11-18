@@ -15,3 +15,6 @@ __pycache__/
 *.pid
 *.tmp
 dist/
+
+# Local service catalog. Copy services.example.json and edit that copy.
+services.json
