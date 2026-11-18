@@ -62,7 +62,7 @@ _snap: dict = {
     "checked_at": None,
 }
 _feeds: dict = {"github": [], "youtube": [], "github_at": 0, "youtube_at": 0}
-_host_samples: deque = deque(maxlen=70)
+_host_samples: deque = deque(maxlen=200)
 _started = False
 
 
@@ -195,7 +195,7 @@ def _window(now: float, seconds: float) -> list:
 
 
 def host_view(latest: dict) -> dict:
-    """Live figure is the last 15 seconds. Bars are 1, 5, and 10 minute means."""
+    """Live figure is the last 15 seconds. Bars are 5, 10, and 30 minute means."""
     now = time.time()
     live_rows = _window(now, LIVE_SECONDS) or [latest]
     older = None
@@ -218,7 +218,7 @@ def host_view(latest: dict) -> dict:
             "temp": _mean(rows, "temp_c"),
         }
 
-    shown["averages"] = {"m1": pack(60), "m5": pack(300), "m10": pack(600)}
+    shown["averages"] = {"m5": pack(300), "m10": pack(600), "m30": pack(1800)}
     shown.pop("cpu_total", None)
     shown.pop("cpu_idle", None)
     return shown
