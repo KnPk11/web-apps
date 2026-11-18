@@ -128,14 +128,44 @@ function statusLabel(service: Service) {
   return "Up";
 }
 
-function compareServices(a: Service, b: Service) {
-  const cpuA = a.usage?.cpu_percent ?? -1;
-  const cpuB = b.usage?.cpu_percent ?? -1;
-  if (cpuA !== cpuB) return cpuB - cpuA;
-  const ramA = a.usage?.mem_bytes ?? -1;
-  const ramB = b.usage?.mem_bytes ?? -1;
-  if (ramA !== ramB) return ramB - ramA;
-  return a.name.localeCompare(b.name);
+type SortKey = "default" | "name" | "type" | "cpu" | "ram" | "status" | "latency";
+
+const SORTS: Array<{ key: SortKey; label: string; defaultDir: 1 | -1 }> = [
+  { key: "name", label: "Name", defaultDir: 1 },
+  { key: "type", label: "Type", defaultDir: 1 },
+  { key: "cpu", label: "1h CPU", defaultDir: -1 },
+  { key: "ram", label: "1h RAM", defaultDir: -1 },
+  { key: "status", label: "Status", defaultDir: 1 },
+  { key: "latency", label: "Latency", defaultDir: 1 },
+];
+
+const STATUS_RANK: Record<Status, number> = { down: 0, up: 1, unknown: 2, off: 3 };
+
+function compareServices(a: Service, b: Service, key: SortKey = "default", dir: 1 | -1 = 1) {
+  const byName = a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true });
+  const num = (x: number | null | undefined, y: number | null | undefined) => {
+    // Missing values always sink to the bottom, whichever direction is chosen.
+    if (x == null && y == null) return 0;
+    if (x == null) return 1;
+    if (y == null) return -1;
+    return (x - y) * dir;
+  };
+  let result = 0;
+  if (key === "name") return byName * dir;
+  if (key === "type") result = a.blurb.localeCompare(b.blurb, undefined, { sensitivity: "base" }) * dir;
+  else if (key === "cpu") result = num(a.usage?.cpu_percent, b.usage?.cpu_percent);
+  else if (key === "ram") result = num(a.usage?.mem_bytes, b.usage?.mem_bytes);
+  else if (key === "status") result = (STATUS_RANK[a.status] - STATUS_RANK[b.status]) * dir;
+  else if (key === "latency") result = num(a.latency_ms, b.latency_ms);
+  else {
+    const cpuA = a.usage?.cpu_percent ?? -1;
+    const cpuB = b.usage?.cpu_percent ?? -1;
+    if (cpuA !== cpuB) return cpuB - cpuA;
+    const ramA = a.usage?.mem_bytes ?? -1;
+    const ramB = b.usage?.mem_bytes ?? -1;
+    if (ramA !== ramB) return ramB - ramA;
+  }
+  return result || byName;
 }
 
 function matches(query: string, parts: Array<string | null | undefined>) {
@@ -213,23 +243,24 @@ function ServiceCard({ service, busy, onToggle }: { service: Service; busy: bool
           <span />
         </label>
       </div>
-      <span className="state">{statusLabel(service)}</span>
+      <div className="staterow">
+        <span className="state">{statusLabel(service)}</span>
+        {service.lights.length > 0 && (
+          <div className="lights">
+            {service.lights.map((light) => (
+              <span key={light.id} className={`light ${light.status}`} title={`${light.name}: ${lightLabel(light.status)}`}>
+                <i />
+                {light.name}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
       <span className="blurb">{service.blurb}</span>
       <p className="usage">
         1h {service.usage?.cpu_percent == null ? "—" : `${service.usage.cpu_percent}%`} CPU
         · {formatBytes(service.usage?.mem_bytes ?? null)} RAM
       </p>
-      {service.lights.length > 0 && (
-        <div className="lights">
-          {service.lights.map((light) => (
-            <span key={light.id} className={`light ${light.status}`}>
-              <i />
-              {light.name}
-              <span>{lightLabel(light.status)}</span>
-            </span>
-          ))}
-        </div>
-      )}
     </article>
   );
 }
@@ -239,6 +270,8 @@ function App() {
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("default");
+  const [sortDir, setSortDir] = useState<1 | -1>(1);
   const [now, setNow] = useState(() => Date.now());
   const [busy, setBusy] = useState<string | null>(null);
   const [gitTopic, setGitTopic] = useState("stars");
@@ -324,8 +357,8 @@ function App() {
 
   const services = data?.services ?? [];
   const visible = useMemo(
-    () => services.filter((service) => matches(query, [service.name, service.blurb, service.url])).sort(compareServices),
-    [services, query],
+    () => services.filter((service) => matches(query, [service.name, service.blurb, service.url])).sort((a, b) => compareServices(a, b, sortKey, sortDir)),
+    [services, query, sortKey, sortDir],
   );
   const live = visible.filter((service) => service.status !== "off");
   const offline = visible.filter((service) => service.status === "off");
@@ -447,6 +480,36 @@ function App() {
           <span className={down.length ? "pill" : "pill ok"}>{up} up</span>
           {down.length > 0 && <span className="pill bad">{down.length} down</span>}
           {off > 0 && <span className="pill">{off} off</span>}
+        </div>
+        <div className="sorts" role="group" aria-label="Sort apps">
+          <span className="sorts-label">Sort</span>
+          {SORTS.map((item) => {
+            const active = sortKey === item.key;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                className={active ? "sort active" : "sort"}
+                aria-pressed={active}
+                title={active ? "Click again to reverse" : `Sort by ${item.label}`}
+                onClick={() => {
+                  if (active) setSortDir((sortDir * -1) as 1 | -1);
+                  else {
+                    setSortKey(item.key);
+                    setSortDir(item.defaultDir);
+                  }
+                }}
+              >
+                {item.label}
+                {active ? <span className="arrow">{sortDir === 1 ? " ↑" : " ↓"}</span> : null}
+              </button>
+            );
+          })}
+          {sortKey !== "default" && (
+            <button type="button" className="sort reset" onClick={() => { setSortKey("default"); setSortDir(1); }} title="Back to busiest first">
+              Reset
+            </button>
+          )}
         </div>
         <input
           id="q"

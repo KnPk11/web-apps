@@ -281,6 +281,35 @@ h1 {
 .pill.bad { color: var(--down); border-color: rgba(255, 123, 114, 0.45); }
 .pill.auth { color: var(--auth); }
 
+.sorts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.sorts-label {
+  margin-right: 2px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.sort {
+  padding: 5px 9px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 12px;
+  cursor: pointer;
+  background: var(--raise);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.sort:hover { color: var(--text); }
+.sort.active { color: var(--acid); border-color: var(--acid); }
+.sort:focus-visible { outline: 2px solid var(--acid); }
+
 .search {
   flex: 1;
   min-width: 0;
@@ -370,6 +399,7 @@ h1 {
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  grid-auto-rows: 1fr;
   gap: 10px;
 }
 
@@ -644,11 +674,20 @@ h1 {
   font-size: 12px;
 }
 
+.staterow {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
 .lights {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
-  margin-top: 8px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .light {
@@ -737,6 +776,11 @@ h1 {
 
   .toolbar {
     flex-wrap: wrap;
+  }
+
+  .sorts {
+    flex-basis: 100%;
+    order: 2;
   }
 
   .search {
