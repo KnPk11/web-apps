@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 StoryCards Story Fetcher & Generator
-Fetches real narrative stories from Reddit or generates them via NVIDIA LLM.
+Fetches real narrative stories from Lemmy and Hacker News, or generates them via NVIDIA LLM.
+Reddit public RSS is paused (the feeds started returning "Not Found" on 2026-11-17).
 Features:
 - Balanced 3-way split: 1/3 Finance (YOLO, loss porn, degenerate trades),
   1/3 Tech/IT/Engineering (work fails, production blunders, getting fired),
@@ -19,10 +20,11 @@ import time
 import random
 import sqlite3
 import sys
+import urllib.parse
 import urllib.request
 import urllib.error
 import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
 
 # ── Paths & Config ─────────────────────────────────────────────
@@ -53,6 +55,27 @@ TECH_SUBREDDITS = ['talesfromtechsupport', 'sysadmin', 'cscareerquestions']
 GENERAL_SUBREDDITS = ['tifu', 'confession', 'CasualConversation', 'AmItheAsshole', 'offmychest']
 
 USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 StoryCardsHomelab/1.0'
+
+# Public subreddit RSS now answers with an Atom document titled "Not Found".
+# The old fetcher stays in this file. Set this to False to call it again.
+REDDIT_PAUSED = True
+
+SOURCE_USER_AGENT = 'StoryCardsFetcher/1.0 (personal homelab reader)'
+LEMMY_INSTANCE = 'https://lemmy.world'
+# Local lemmy.world communities. Life boards carry the first-person posts.
+# sysadmin and wallstreetbets are thin and mostly links, so they share the same pass.
+LEMMY_COMMUNITIES = [
+    ('goodoffmychest', 'lifestory'),
+    ('offmychest', 'lifestory'),
+    ('confessions', 'lifestory'),
+    ('aitah', 'lifestory'),
+    ('tifu', 'lifestory'),
+    ('casualconversation', 'lifestory'),
+    ('sysadmin', 'tech'),
+    ('wallstreetbets', 'finance'),
+]
+HN_API = 'https://hacker-news.firebaseio.com/v0'
+HN_ASK_LOOKAHEAD = 30
 
 # Keywords indicating financial disaster, trading losses, or bad investment regrets
 FINANCIAL_LOSS_KEYWORDS = [
@@ -447,6 +470,125 @@ def fetch_reddit_story(target_category="finance"):
     conn.close()
     return None, None, None
 
+def http_json(url):
+    req = urllib.request.Request(url, headers={
+        'User-Agent': SOURCE_USER_AGENT,
+        'Accept': 'application/json',
+    })
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        return json.load(resp)
+
+def compose_story(title, body):
+    """Join a title and body, and keep the length the Reddit fetcher used to require."""
+    full_content = f"{title}\n\n{body}".strip()
+    if len(full_content) < 250:
+        return None
+    if len(full_content) > 3000:
+        truncated = full_content[:2960]
+        last_period = max(truncated.rfind('.'), truncated.rfind('!'), truncated.rfind('?'))
+        if last_period > 1200:
+            full_content = truncated[:last_period + 1] + " [Continued...]"
+        else:
+            full_content = truncated.rstrip() + "..."
+    return full_content
+
+def consider_story(conn, title, body, author, source_timestamp, community, category):
+    """Return a saveable story tuple, or None when this post should be skipped."""
+    if not body or any(k in body.lower() for k in ('[removed]', '[deleted]')):
+        return None
+    is_valid, _reason = is_candidate_story_valid(title, body, community, category=category)
+    if not is_valid:
+        return None
+    full_content = compose_story(title, body)
+    if not full_content:
+        return None
+    if is_story_duplicate(conn, title, full_content, author=author, source_timestamp=source_timestamp):
+        print(f"  Skipping duplicate ({author} @ {source_timestamp}): '{title[:50]}...'")
+        return None
+    return author[:25], full_content, source_timestamp, category
+
+def fetch_lemmy_story():
+    """Read recent first-person posts from lemmy.world communities."""
+    communities = list(LEMMY_COMMUNITIES)
+    random.shuffle(communities)
+    conn = get_db()
+    try:
+        for idx, (name, category) in enumerate(communities):
+            if idx:
+                time.sleep(1.0)
+            url = (
+                f"{LEMMY_INSTANCE}/api/v3/post/list?community_name={urllib.parse.quote(name)}"
+                "&sort=New&limit=20&type_=Local"
+            )
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Checking Lemmy !{name} ({url})...")
+            try:
+                data = http_json(url)
+            except urllib.error.HTTPError as e:
+                print(f"  HTTP error from !{name}: {e.code} ({e.reason})")
+                continue
+            except Exception as e:
+                print(f"  Error fetching !{name}: {e}")
+                continue
+            for view in data.get('posts') or []:
+                post = view.get('post') or {}
+                creator = view.get('creator') or {}
+                title = (post.get('name') or '').strip()
+                body = clean_reddit_text(post.get('body') or '')
+                author = (creator.get('name') or 'anon').strip() or 'anon'
+                if author.lower() in ('automoderator', 'deleted', 'mod'):
+                    author = random.choice(FUNNY_NICKNAMES)
+                found = consider_story(
+                    conn, title, body, author,
+                    (post.get('published') or '').strip(),
+                    name, category,
+                )
+                if found:
+                    nickname, full_content, source_timestamp, category = found
+                    print(f"Successfully fetched Lemmy story from !{name} by @{nickname} ({len(full_content)} chars)")
+                    return nickname, full_content, source_timestamp, category
+    finally:
+        conn.close()
+    return None, None, None, None
+
+def fetch_hn_story():
+    """Read recent Ask HN posts. Link-only front-page items have no story body."""
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Checking Hacker News Ask ({HN_API}/askstories.json)...")
+    try:
+        story_ids = http_json(f"{HN_API}/askstories.json") or []
+    except Exception as e:
+        print(f"  Error fetching Hacker News ask list: {e}")
+        return None, None, None, None
+
+    conn = get_db()
+    try:
+        for idx, story_id in enumerate(story_ids[:HN_ASK_LOOKAHEAD]):
+            if idx:
+                time.sleep(0.15)
+            try:
+                item = http_json(f"{HN_API}/item/{story_id}.json") or {}
+            except Exception as e:
+                print(f"  Error fetching Hacker News item {story_id}: {e}")
+                continue
+            if item.get('dead') or item.get('deleted'):
+                continue
+            title = (item.get('title') or '').strip()
+            body = clean_reddit_text(item.get('text') or '')
+            author = (item.get('by') or 'anon').strip() or 'anon'
+            posted = item.get('time')
+            source_timestamp = ""
+            if posted:
+                source_timestamp = datetime.fromtimestamp(posted, timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+            # Ask HN titles are questions. Score them as life stories so a question mark
+            # does not throw out a first-person post. Comments still use the tech lane.
+            found = consider_story(conn, title, body, author, source_timestamp, 'hackernews', 'lifestory')
+            if found:
+                nickname, full_content, source_timestamp, _category = found
+                print(f"Successfully fetched Hacker News story #{story_id} by @{nickname} ({len(full_content)} chars)")
+                return nickname, full_content, source_timestamp, 'tech'
+    finally:
+        conn.close()
+    return None, None, None, None
+
 def generate_ai_story(category="finance"):
     """Fallback: Generate an original, dynamic story via NVIDIA LLM adhering to 1/3 split."""
     if not NVIDIA_API_KEY:
@@ -689,21 +831,36 @@ def main():
     print(f"Target story category this run: {category.upper()} (1/3 finance, 1/3 tech/work fails, 1/3 life stories)")
     if force_ai:
         print("Forcing AI-generated story this cycle (1/8 chance)")
+    if REDDIT_PAUSED:
+        print("Reddit fetching is paused.")
 
-    # 1. Try fetching a real story from Reddit adhering to target category (unless forced AI)
+    # Half the cycles try Lemmy first, half try Hacker News first.
+    # The second source runs only when the first one has nothing that passes.
     is_ai = 0
     source_ts = None
-    if not force_ai:
+    nickname, content = None, None
+    if not force_ai and not REDDIT_PAUSED:
         nickname, content, source_ts = fetch_reddit_story(target_category=category)
-    else:
-        nickname, content, source_ts = None, None, None
+    elif not force_ai:
+        source_order = ['lemmy', 'hackernews']
+        random.shuffle(source_order)
+        print(f"Source order this run: {source_order[0]}, then {source_order[1]}")
+        for source_name in source_order:
+            if source_name == 'lemmy':
+                nickname, content, source_ts, got_category = fetch_lemmy_story()
+            else:
+                nickname, content, source_ts, got_category = fetch_hn_story()
+            if content:
+                category = got_category or category
+                break
+            print(f"{source_name} yielded no qualifying story.")
 
-    # 2. If Reddit was blocked or unavailable or no matching story passed filter, fall back to AI generation
+    # Real sources empty, or this cycle was chosen as an AI story.
     if not content:
         if force_ai:
             print(f"Generating AI story as requested ({category})...")
         else:
-            print(f"Reddit fetch yielded no qualifying stories; falling back to dynamic AI generation ({category})...")
+            print(f"Lemmy and Hacker News yielded no qualifying stories; falling back to dynamic AI generation ({category})...")
         nickname, content = generate_ai_story(category=category)
         is_ai = 1
         source_ts = None
@@ -722,7 +879,7 @@ def main():
 
 if __name__ == '__main__':
     if '--loop' in sys.argv or '--daemon' in sys.argv:
-        print(f"=== Starting StoryCards Fetcher Daemon (randomised 30m-6h intervals) ===")
+        print(f"=== Starting StoryCards Fetcher Daemon (Lemmy and Hacker News, Reddit paused, 30m-6h) ===")
         sys.stdout.flush()
         while True:
             try:
