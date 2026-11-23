@@ -482,12 +482,21 @@
         .comments-section { border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; }
         .comment-list { list-style: none; padding: 0; margin: 0 0 15px 0; max-height: 200px; overflow-y: auto; }
         .comment-item {
+            position: relative;
             font-size: 0.9em;
             margin-bottom: 8px;
             padding: 10px 12px;
             background: rgba(0,0,0,0.2);
             border-radius: 8px;
             transition: all 0.3s ease;
+        }
+
+        .comment-item.has-delete { padding-right: 28px; }
+
+        .comment-item > .delete-btn {
+            position: absolute;
+            top: 6px;
+            right: 6px;
         }
 
         .comment-ai-reply {
@@ -1092,6 +1101,33 @@
             display: inline-flex;
             align-items: center;
             gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .delete-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            opacity: 0.45;
+            cursor: pointer;
+            padding: 3px;
+            border-radius: 4px;
+            line-height: 1;
+            transition: opacity 0.2s, transform 0.2s;
+        }
+
+        .delete-btn:hover {
+            opacity: 0.95;
+            transform: scale(1.15);
+        }
+
+        .comment-user-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
             flex-wrap: wrap;
         }
 
@@ -1981,6 +2017,7 @@
                                 </svg>
                             </span>
                         ` : ''}
+                        ${story.can_delete ? deleteIconButton('story', story.id) : ''}
                         <button class="upvote-btn ${isVoted ? 'voted' : ''}" id="upvote-btn-${story.id}" onclick="toggleUpvote(${story.id})" title="${isVoted ? 'Remove upvote' : 'Upvote story'}">
                             <span class="upvote-arrow">▲</span>
                             <span class="upvote-count" id="upvote-count-${story.id}">${upvotesCount}</span>
@@ -2002,22 +2039,7 @@
                 ` : ''}
                 <div class="comments-section">
                     <div class="comment-list" id="comments-${story.id}">
-                        ${comments.map(c => {
-                            const cPending = c.moderated === 0;
-                            const cMine = c.nickname === myNick;
-                            const shouldBlur = cPending && !cMine;
-                            return `
-                                <li class="comment-item ${shouldBlur ? 'is-pending' : ''}" 
-                                    ${shouldBlur ? `onclick="this.classList.toggle('revealed')"` : ''}>
-                                    <div class="comment-user-row">
-                                        <span class="comment-user">${c.nickname}${c.moderated === 0 ? ' (pending)' : ''}:</span>
-                                        ${shouldBlur ? '<span class="pending-overlay" style="position:static; transform:none; display:inline-block; padding:2px 6px; font-size:0.6em; margin-bottom:4px; cursor:pointer">Tap to reveal</span>' : ''}
-                                        <span class="comment-text">${c.comment}</span>
-                                    </div>
-                                    ${c.review && c.review !== 'SKIPPED' ? `<div class="comment-ai-reply"><span class="mod-tag">MOD</span> ${c.review}</div>` : ''}
-                                </li>
-                            `;
-                        }).join('')}
+                        ${comments.map(c => commentItemHtml(c, story.id, myNick, story.can_delete)).join('')}
                     </div>
                     <div class="comment-box">
                         <input type="text" placeholder="Add a comment... (Max 200 chars)" maxlength="200" id="comment-input-${story.id}" onkeypress="if(event.key === 'Enter') postComment(${story.id})">
@@ -2115,22 +2137,7 @@
                 const currentCount = commentsContainer.querySelectorAll('.comment-item').length;
                 if (currentCount !== story.comments.length) {
                     const myNick = getStoredNick();
-                    commentsContainer.innerHTML = story.comments.map(c => {
-                        const cPending = c.moderated === 0;
-                        const cMine = c.nickname === myNick;
-                        const shouldBlur = cPending && !cMine;
-                        return `
-                            <li class="comment-item ${shouldBlur ? 'is-pending' : ''}" 
-                                ${shouldBlur ? `onclick="this.classList.toggle('revealed')"` : ''}>
-                                <div class="comment-user-row">
-                                    <span class="comment-user">${c.nickname}${c.moderated === 0 ? ' (pending)' : ''}:</span>
-                                    ${shouldBlur ? '<span class="pending-overlay" style="position:static; transform:none; display:inline-block; padding:2px 6px; font-size:0.6em; margin-bottom:4px; cursor:pointer">Tap to reveal</span>' : ''}
-                                    <span class="comment-text">${c.comment}</span>
-                                </div>
-                                ${c.review && c.review !== 'SKIPPED' ? `<div class="comment-ai-reply"><span class="mod-tag">MOD</span> ${c.review}</div>` : ''}
-                            </li>
-                        `;
-                    }).join('');
+                    commentsContainer.innerHTML = story.comments.map(c => commentItemHtml(c, story.id, myNick, story.can_delete)).join('');
                 }
             }
         }
@@ -2562,6 +2569,60 @@
                 }
                 setFeedTab('latest');
                 fetchCalendarDates();
+            }
+        }
+
+        function deleteIconButton(kind, id, storyId) {
+            const title = kind === 'story' ? 'Delete this story' : 'Delete this comment';
+            const stop = kind === 'comment' ? 'event.stopPropagation(); ' : '';
+            const extra = storyId != null ? `, ${storyId}` : '';
+            return `<button type="button" class="delete-btn" onclick="${stop}deleteItem('${kind}', ${id}${extra})" title="${title}" aria-label="${title}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg></button>`;
+        }
+
+        function commentItemHtml(c, storyId, myNick, canDelete) {
+            const cPending = c.moderated === 0;
+            const cMine = c.nickname === myNick;
+            const shouldBlur = cPending && !cMine;
+            const deleteBtn = canDelete ? deleteIconButton('comment', c.id, storyId) : '';
+            return `
+                <li class="comment-item ${shouldBlur ? 'is-pending' : ''} ${canDelete ? 'has-delete' : ''}" id="comment-${c.id}"
+                    ${shouldBlur ? `onclick="this.classList.toggle('revealed')"` : ''}>
+                    ${deleteBtn}
+                    <div class="comment-user-row">
+                        <span class="comment-user">${c.nickname}${c.moderated === 0 ? ' (pending)' : ''}:</span>
+                        ${shouldBlur ? '<span class="pending-overlay" style="position:static; transform:none; display:inline-block; padding:2px 6px; font-size:0.6em; margin-bottom:4px; cursor:pointer">Tap to reveal</span>' : ''}
+                        <span class="comment-text">${c.comment}</span>
+                    </div>
+                    ${c.review && c.review !== 'SKIPPED' ? `<div class="comment-ai-reply"><span class="mod-tag">MOD</span> ${c.review}</div>` : ''}
+                </li>
+            `;
+        }
+
+        async function deleteItem(kind, id, storyId) {
+            const label = kind === 'story' ? 'this story and its comments' : 'this comment';
+            if (!confirm(`Delete ${label}? This cannot be undone.`)) return;
+            const res = await fetch('/api/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: kind, id })
+            });
+            if (res.status === 403) {
+                alert('Delete is only available from home.');
+                return;
+            }
+            if (!res.ok) {
+                alert('Could not delete that.');
+                return;
+            }
+            if (kind === 'story') {
+                const card = document.getElementById(`story-card-${id}`);
+                if (card) card.remove();
+                loadedStoryIds.delete(id);
+                if (loadedStoryIds.size === 0) renderEmptyReelState();
+                fetchCalendarStats();
+            } else {
+                const row = document.getElementById(`comment-${id}`);
+                if (row) row.remove();
             }
         }
 

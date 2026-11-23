@@ -42,13 +42,26 @@ def is_lan_ip(ip_str):
     except Exception:
         return False
 
+# Caddy on the reverse proxy is the only peer allowed to supply X-Forwarded-For.
+# It replaces that header with the real client, so the last hop is the visitor.
+TRUSTED_PROXIES = {'192.168.50.101', '127.0.0.1', '::1'}
+
+def _normalise_ip(ip_str):
+    if ip_str.startswith('::ffff:'):
+        return ip_str[7:]
+    return ip_str
+
 def get_client_ip(handler):
+    peer = _normalise_ip(handler.client_address[0])
     xff = handler.headers.get('X-Forwarded-For', '')
-    if xff:
-        ip = xff.split(',')[0].strip()
-        if ip:
-            return ip
-    return handler.client_address[0]
+    if peer in TRUSTED_PROXIES and xff:
+        parts = [p.strip() for p in xff.split(',') if p.strip()]
+        if parts:
+            return _normalise_ip(parts[-1])
+    return peer
+
+def client_is_local(handler):
+    return is_lan_ip(get_client_ip(handler))
 
 # Rate limiting state
 ratelimits = {}
@@ -107,6 +120,7 @@ class StoryHandler(BaseHTTPRequestHandler):
         if url.path == '/':
             self.send_response(200)
             self.send_header('Content-type', 'text/html')
+            self.send_header('Cache-Control', 'no-store')
             self.end_headers()
             with open('index.html', 'rb') as f:
                 self.wfile.write(f.read())
@@ -179,8 +193,10 @@ class StoryHandler(BaseHTTPRequestHandler):
             cursor.execute(f'SELECT * FROM stories {where_clause} {order_clause} {pagination_clause}', exec_params)
             
             stories = [dict(row) for row in cursor.fetchall()]
+            local_viewer = client_is_local(self)
             # Add all comments for each story (oldest first, so new comments appear at the bottom)
             for story in stories:
+                story['can_delete'] = local_viewer
                 if user_is_bot:
                     cursor.execute('SELECT id, nickname, comment, review, moderated, created_at FROM comments WHERE story_id = ? AND moderated = 1 ORDER BY created_at ASC, id ASC', (story['id'],))
                 else:
@@ -392,6 +408,44 @@ class StoryHandler(BaseHTTPRequestHandler):
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             self.wfile.write(json.dumps({'ok': True}).encode())
+
+        elif url.path == '/api/delete':
+            if not client_is_local(self):
+                self.send_response(403)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({'error': 'local only'}).encode())
+                return
+
+            item_type = data.get('type')
+            try:
+                item_id = int(data.get('id'))
+            except (TypeError, ValueError):
+                self.send_response(400); self.end_headers(); return
+            if item_type not in ('story', 'comment') or item_id < 1:
+                self.send_response(400); self.end_headers(); return
+
+            conn = get_db(); cursor = conn.cursor()
+            if item_type == 'comment':
+                cursor.execute('SELECT 1 FROM comments WHERE id = ?', (item_id,))
+                if cursor.fetchone() is None:
+                    conn.close()
+                    self.send_response(404); self.end_headers(); return
+                cursor.execute('DELETE FROM comments WHERE id = ?', (item_id,))
+            else:
+                cursor.execute('SELECT 1 FROM stories WHERE id = ?', (item_id,))
+                if cursor.fetchone() is None:
+                    conn.close()
+                    self.send_response(404); self.end_headers(); return
+                cursor.execute('DELETE FROM comments WHERE story_id = ?', (item_id,))
+                cursor.execute('DELETE FROM story_upvotes WHERE story_id = ?', (item_id,))
+                cursor.execute('DELETE FROM user_bookmarks WHERE story_id = ?', (item_id,))
+                cursor.execute('DELETE FROM stories WHERE id = ?', (item_id,))
+            conn.commit(); conn.close()
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({'ok': True, 'type': item_type, 'id': item_id}).encode())
 
         elif url.path == '/api/rehabilitate':
             # Point 3: User edits their rejected content
